@@ -5,6 +5,7 @@ Shared FastMCP server instance and global state.
 from fastmcp import FastMCP
 from servicenow_mcp.auth.auth_manager import AuthManager
 from servicenow_mcp.utils.config import ServerConfig
+from servicenow_mcp.utils.logging_utils import setup_request_logging
 
 # Initialize FastMCP instance
 mcp = FastMCP("ServiceNow")
@@ -24,6 +25,9 @@ def initialize(auth_manager: AuthManager, server_config: ServerConfig):
     global _auth_manager, _server_config
     _auth_manager = auth_manager
     _server_config = server_config
+
+    if server_config.debug:
+        setup_request_logging()
 
 def get_auth_manager() -> AuthManager:
     """Get the global authentication manager."""

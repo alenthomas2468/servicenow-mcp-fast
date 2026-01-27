@@ -52,6 +52,12 @@ def parse_args():
         help="Request timeout in seconds",
         default=int(os.environ.get("SERVICENOW_TIMEOUT", "30")),
     )
+    parser.add_argument(
+        "--port",
+        type=int,
+        help="Server port",
+        default=int(os.environ.get("PORT", "8080")),
+    )
 
     # Authentication
     auth_group = parser.add_argument_group("Authentication")
@@ -210,6 +216,7 @@ def create_config_and_auth() -> Tuple[ServerConfig, AuthManager]:
         auth=final_auth_config,
         debug=args.debug,
         timeout=args.timeout,
+        port=args.port,
         script_execution_api_resource_path=script_execution_api_resource_path,
     )
     

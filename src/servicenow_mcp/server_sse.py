@@ -29,7 +29,7 @@ def main():
         logger.info(f"Starting ServiceNow MCP server (SSE) for instance: {config.instance_url}")
         
         # Run the server
-        mcp.run(transport="sse")
+        mcp.run(transport="sse", port=config.port)
         
     except ValueError as e:
         logger.error(f"Configuration error: {e}")

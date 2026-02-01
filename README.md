@@ -12,6 +12,47 @@ This server allows LLMs to interact with ServiceNow instances to manage:
 - Knowledge Base Articles
 - Script Includes
 
+## Architecture
+
+The project follows a clean, modular architecture:
+
+```
+src/servicenow_mcp/
+├── auth/               # Authentication handling (Basic, OAuth, API Key)
+├── tools/              # MCP tool implementations
+│   ├── incident_tools.py
+│   ├── user_tools.py
+│   ├── story_tools.py
+│   ├── workflow_tools.py
+│   ├── knowledge_base.py
+│   └── script_include_tools.py
+├── utils/              # Shared utilities
+│   ├── http_client.py  # Centralized HTTP client with SSL support
+│   ├── helpers.py      # Common helper functions
+│   ├── config.py       # Configuration models
+│   └── logging_utils.py
+├── application.py      # FastMCP application setup
+├── server.py           # Main server entry point
+└── server_sse.py       # SSE server variant
+```
+
+### Utility Modules
+
+#### `http_client.py`
+Centralized HTTP client providing:
+- Unified interface for all HTTP methods (GET, POST, PUT, PATCH, DELETE)
+- Automatic SSL certificate configuration for private network instances
+- Consistent timeout and error handling
+
+#### `helpers.py`
+Common helper functions to reduce code duplication:
+- `build_request_data()` - Build request payloads from required/optional fields
+- `resolve_record_id()` - Resolve ServiceNow identifiers to sys_ids
+- `format_success_response()` / `format_error_response()` - Standardized response formatting
+- `format_list_response()` - Pagination-aware list responses
+- `extract_display_value()` - Safely extract display values from ServiceNow fields
+- `is_sys_id()` - Check if a string is a valid ServiceNow sys_id
+
 ## Installation
 
 1.  Create a virtual environment:

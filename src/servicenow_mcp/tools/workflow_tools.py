@@ -4,17 +4,27 @@ Workflow management tools for the ServiceNow MCP server.
 This module provides tools for viewing and managing workflows in ServiceNow.
 """
 
-import logging
-from typing import Any, Dict, List, Optional
 import json
+import logging
+from typing import Optional
 
 import requests
 from pydantic import Field
 
 from servicenow_mcp.application import mcp, get_auth_manager, get_config
 from servicenow_mcp.utils import http_client
+from servicenow_mcp.utils.helpers import (
+    build_request_data,
+    format_success_response,
+    format_error_response,
+)
 
 logger = logging.getLogger(__name__)
+
+# Table name constants
+WORKFLOW_TABLE = "wf_workflow"
+WORKFLOW_VERSION_TABLE = "wf_workflow_version"
+WORKFLOW_ACTIVITY_TABLE = "wf_activity"
 
 
 @mcp.tool()
@@ -31,7 +41,6 @@ def list_workflows(
     config = get_config()
     auth_manager = get_auth_manager()
 
-    # Convert parameters to ServiceNow query format
     query_params = {
         "sysparm_limit": limit,
         "sysparm_offset": offset,
@@ -39,37 +48,34 @@ def list_workflows(
     
     # Build query string
     query_parts = []
-    
     if active is not None:
         query_parts.append(f"active={str(active).lower()}")
-    
     if name:
         query_parts.append(f"nameLIKE{name}")
-    
     if query:
         query_parts.append(query)
     
     if query_parts:
         query_params["sysparm_query"] = "^".join(query_parts)
     
-    # Make the API request
     try:
-        headers = auth_manager.get_headers()
-        url = f"{config.instance_url}/api/now/table/wf_workflow"
-        
-        response = http_client.get(url, headers=headers, params=query_params)
+        url = f"{config.instance_url}/api/now/table/{WORKFLOW_TABLE}"
+        response = http_client.get(url, headers=auth_manager.get_headers(), params=query_params)
         response.raise_for_status()
         
         result = response.json()
+        workflows = result.get("result", [])
+        
         output = {
-            "workflows": result.get("result", []),
-            "count": len(result.get("result", [])),
+            "workflows": workflows,
+            "count": len(workflows),
             "total": int(response.headers.get("X-Total-Count", 0)),
         }
         return json.dumps(output, indent=2)
+
     except requests.RequestException as e:
         logger.error(f"Error listing workflows: {e}")
-        return f"Error listing workflows: {str(e)}"
+        return format_error_response("list workflows", e)
 
 
 @mcp.tool()
@@ -83,22 +89,17 @@ def get_workflow_details(
     config = get_config()
     auth_manager = get_auth_manager()
     
-    # Make the API request
     try:
-        headers = auth_manager.get_headers()
-        url = f"{config.instance_url}/api/now/table/wf_workflow/{workflow_id}"
-        
-        response = http_client.get(url, headers=headers)
+        url = f"{config.instance_url}/api/now/table/{WORKFLOW_TABLE}/{workflow_id}"
+        response = http_client.get(url, headers=auth_manager.get_headers())
         response.raise_for_status()
         
         result = response.json()
-        output = {
-            "workflow": result.get("result", {}),
-        }
-        return json.dumps(output, indent=2)
+        return format_success_response("Workflow retrieved", workflow=result.get("result", {}))
+
     except requests.RequestException as e:
         logger.error(f"Error getting workflow details: {e}")
-        return f"Error getting workflow details: {str(e)}"
+        return format_error_response("get workflow details", e)
 
 
 @mcp.tool()
@@ -113,32 +114,31 @@ def list_workflow_versions(
     config = get_config()
     auth_manager = get_auth_manager()
     
-    # Convert parameters to ServiceNow query format
     query_params = {
         "sysparm_query": f"workflow={workflow_id}",
         "sysparm_limit": limit,
         "sysparm_offset": offset,
     }
     
-    # Make the API request
     try:
-        headers = auth_manager.get_headers()
-        url = f"{config.instance_url}/api/now/table/wf_workflow_version"
-        
-        response = http_client.get(url, headers=headers, params=query_params)
+        url = f"{config.instance_url}/api/now/table/{WORKFLOW_VERSION_TABLE}"
+        response = http_client.get(url, headers=auth_manager.get_headers(), params=query_params)
         response.raise_for_status()
         
         result = response.json()
+        versions = result.get("result", [])
+        
         output = {
-            "versions": result.get("result", []),
-            "count": len(result.get("result", [])),
+            "versions": versions,
+            "count": len(versions),
             "total": int(response.headers.get("X-Total-Count", 0)),
             "workflow_id": workflow_id,
         }
         return json.dumps(output, indent=2)
+
     except requests.RequestException as e:
         logger.error(f"Error listing workflow versions: {e}")
-        return f"Error listing workflow versions: {str(e)}"
+        return format_error_response("list workflow versions", e)
 
 
 @mcp.tool()
@@ -157,51 +157,49 @@ def get_workflow_activities(
     # If no version specified, get the latest published version
     if not version_id:
         try:
-            headers = auth_manager.get_headers()
-            version_url = f"{config.instance_url}/api/now/table/wf_workflow_version"
+            version_url = f"{config.instance_url}/api/now/table/{WORKFLOW_VERSION_TABLE}"
             version_params = {
                 "sysparm_query": f"workflow={workflow_id}^published=true",
                 "sysparm_limit": 1,
                 "sysparm_orderby": "version DESC",
             }
             
-            version_response = http_client.get(version_url, headers=headers, params=version_params)
+            version_response = http_client.get(version_url, headers=auth_manager.get_headers(), params=version_params)
             version_response.raise_for_status()
             
-            version_result = version_response.json()
-            versions = version_result.get("result", [])
-            
+            versions = version_response.json().get("result", [])
             if not versions:
                 return f"No published versions found for workflow {workflow_id}"
             
             version_id = versions[0]["sys_id"]
+
         except requests.RequestException as e:
             logger.error(f"Error getting workflow version: {e}")
-            return f"Error getting workflow version: {str(e)}"
+            return format_error_response("get workflow version", e)
     
     # Get activities for the version
     try:
-        headers = auth_manager.get_headers()
-        activities_url = f"{config.instance_url}/api/now/table/wf_activity"
+        activities_url = f"{config.instance_url}/api/now/table/{WORKFLOW_ACTIVITY_TABLE}"
         activities_params = {
             "sysparm_query": f"workflow_version={version_id}",
             "sysparm_orderby": "order",
         }
         
-        activities_response = http_client.get(activities_url, headers=headers, params=activities_params)
+        activities_response = http_client.get(activities_url, headers=auth_manager.get_headers(), params=activities_params)
         activities_response.raise_for_status()
         
-        activities_result = activities_response.json()
+        activities = activities_response.json().get("result", [])
         output = {
-            "activities": activities_result.get("result", []),
-            "count": len(activities_result.get("result", [])),
+            "activities": activities,
+            "count": len(activities),
             "workflow_id": workflow_id,
             "version_id": version_id,
         }
         return json.dumps(output, indent=2)
+
     except requests.RequestException as e:
         logger.error(f"Error getting workflow activities: {e}")
-        return f"Error getting workflow activities: {str(e)}"
+        return format_error_response("get workflow activities", e)
 
 
 @mcp.tool()
@@ -210,10 +208,6 @@ def create_workflow(
     description: Optional[str] = Field(None, description="Description of the workflow"),
     table: Optional[str] = Field(None, description="Table the workflow applies to"),
     active: bool = Field(True, description="Whether the workflow is active"),
-    # Accessing dict argument in FastMCP tools can be tricky if expecting complex JSON.
-    # FastMCP supports complex types but for simplicity we'll avoid specialized parsing if not needed.
-    # If attributes is complex, it should be a JSON string or simplified.
-    # Given previous code used Dict[str, Any], we'll assume the client sends valid JSON or dict.
 ) -> str:
     """
     Create a new workflow in ServiceNow.
@@ -221,36 +215,27 @@ def create_workflow(
     config = get_config()
     auth_manager = get_auth_manager()
     
-    # Prepare data for the API request
-    data = {
-        "name": name,
-    }
+    # Build request data using helper
+    data = build_request_data(
+        required_fields={"name": name},
+        optional_fields={
+            "description": description,
+            "table": table,
+            "active": active,
+        }
+    )
     
-    if description:
-        data["description"] = description
-    
-    if table:
-        data["table"] = table
-    
-    data["active"] = str(active).lower()
-    
-    # Make the API request
     try:
-        headers = auth_manager.get_headers()
-        url = f"{config.instance_url}/api/now/table/wf_workflow"
-        
-        response = http_client.post(url, headers=headers, json=data)
+        url = f"{config.instance_url}/api/now/table/{WORKFLOW_TABLE}"
+        response = http_client.post(url, headers=auth_manager.get_headers(), json=data)
         response.raise_for_status()
         
         result = response.json()
-        output = {
-            "workflow": result.get("result", {}),
-            "message": "Workflow created successfully",
-        }
-        return json.dumps(output, indent=2)
+        return format_success_response("Workflow created successfully", workflow=result.get("result", {}))
+
     except requests.RequestException as e:
         logger.error(f"Error creating workflow: {e}")
-        return f"Error creating workflow: {str(e)}"
+        return format_error_response("create workflow", e)
 
 
 @mcp.tool()
@@ -267,41 +252,31 @@ def update_workflow(
     config = get_config()
     auth_manager = get_auth_manager()
     
-    # Prepare data for the API request
-    data = {}
-    
-    if name:
-        data["name"] = name
-    
-    if description is not None:
-        data["description"] = description
-    
-    if table:
-        data["table"] = table
-    
-    if active is not None:
-        data["active"] = str(active).lower()
+    # Build request data using helper
+    data = build_request_data(
+        required_fields={},
+        optional_fields={
+            "name": name,
+            "description": description,
+            "table": table,
+            "active": active,
+        }
+    )
     
     if not data:
         return "No update parameters provided"
     
-    # Make the API request
     try:
-        headers = auth_manager.get_headers()
-        url = f"{config.instance_url}/api/now/table/wf_workflow/{workflow_id}"
-        
-        response = http_client.patch(url, headers=headers, json=data)
+        url = f"{config.instance_url}/api/now/table/{WORKFLOW_TABLE}/{workflow_id}"
+        response = http_client.patch(url, headers=auth_manager.get_headers(), json=data)
         response.raise_for_status()
         
         result = response.json()
-        output = {
-            "workflow": result.get("result", {}),
-            "message": "Workflow updated successfully",
-        }
-        return json.dumps(output, indent=2)
+        return format_success_response("Workflow updated successfully", workflow=result.get("result", {}))
+
     except requests.RequestException as e:
         logger.error(f"Error updating workflow: {e}")
-        return f"Error updating workflow: {str(e)}"
+        return format_error_response("update workflow", e)
 
 
 @mcp.tool()
@@ -314,25 +289,18 @@ def activate_workflow(
     config = get_config()
     auth_manager = get_auth_manager()
     
-    data = {"active": "true"}
-    
-    # Make the API request
     try:
-        headers = auth_manager.get_headers()
-        url = f"{config.instance_url}/api/now/table/wf_workflow/{workflow_id}"
-        
-        response = http_client.patch(url, headers=headers, json=data)
+        url = f"{config.instance_url}/api/now/table/{WORKFLOW_TABLE}/{workflow_id}"
+        response = http_client.patch(url, headers=auth_manager.get_headers(), json={"active": "true"})
         response.raise_for_status()
         
         result = response.json()
-        output = {
-            "workflow": result.get("result", {}),
-            "message": "Workflow activated successfully",
-        }
-        return json.dumps(output, indent=2)
+        return format_success_response("Workflow activated successfully", workflow=result.get("result", {}))
+
     except requests.RequestException as e:
         logger.error(f"Error activating workflow: {e}")
-        return f"Error activating workflow: {str(e)}"
+        return format_error_response("activate workflow", e)
+
 
 @mcp.tool()
 def deactivate_workflow(
@@ -344,22 +312,14 @@ def deactivate_workflow(
     config = get_config()
     auth_manager = get_auth_manager()
     
-    data = {"active": "false"}
-    
-    # Make the API request
     try:
-        headers = auth_manager.get_headers()
-        url = f"{config.instance_url}/api/now/table/wf_workflow/{workflow_id}"
-        
-        response = http_client.patch(url, headers=headers, json=data)
+        url = f"{config.instance_url}/api/now/table/{WORKFLOW_TABLE}/{workflow_id}"
+        response = http_client.patch(url, headers=auth_manager.get_headers(), json={"active": "false"})
         response.raise_for_status()
         
         result = response.json()
-        output = {
-            "workflow": result.get("result", {}),
-            "message": "Workflow deactivated successfully",
-        }
-        return json.dumps(output, indent=2)
+        return format_success_response("Workflow deactivated successfully", workflow=result.get("result", {}))
+
     except requests.RequestException as e:
         logger.error(f"Error deactivating workflow: {e}")
-        return f"Error deactivating workflow: {str(e)}"
+        return format_error_response("deactivate workflow", e)

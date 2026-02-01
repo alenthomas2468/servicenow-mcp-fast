@@ -13,6 +13,19 @@ from pydantic import Field
 
 from servicenow_mcp.application import mcp, get_auth_manager, get_config
 from servicenow_mcp.utils import http_client
+from servicenow_mcp.utils.helpers import (
+    build_request_data,
+    resolve_record_id,
+    format_kb_response,
+    is_sys_id,
+    extract_display_value,
+    parse_bool_field
+)
+
+# Table constants
+KB_KNOWLEDGE_BASE_TABLE = "kb_knowledge_base"
+KB_CATEGORY_TABLE = "kb_category"
+KB_KNOWLEDGE_TABLE = "kb_knowledge"
 
 logger = logging.getLogger(__name__)
 
@@ -29,21 +42,19 @@ def create_knowledge_base(
     config = get_config()
     auth_manager = get_auth_manager()
 
-    api_url = f"{config.api_url}/table/kb_knowledge_base"
+    api_url = f"{config.api_url}/table/{KB_KNOWLEDGE_BASE_TABLE}"
 
     # Build request data
-    data = {
+    data = build_request_data({
         "title": title,
+        "description": description,
+        "owner": owner,
+        "kb_managers": managers,
+    })
+    data.update({
         "workflow_publish": publish_workflow,
         "workflow_retire": retire_workflow,
-    }
-
-    if description:
-        data["description"] = description
-    if owner:
-        data["owner"] = owner
-    if managers:
-        data["kb_managers"] = managers
+    })
 
     # Make request
     try:
@@ -56,14 +67,7 @@ def create_knowledge_base(
         response.raise_for_status()
 
         result = response.json().get("result", {})
-
-        output = {
-            "success": True,
-            "message": "Knowledge base created successfully",
-            "kb_id": result.get("sys_id"),
-            "kb_name": result.get("title"),
-        }
-        return json.dumps(output, indent=2)
+        return json.dumps(format_kb_response(result), indent=2)
 
     except requests.RequestException as e:
         logger.error(f"Failed to create knowledge base: {e}")
@@ -81,7 +85,7 @@ def list_knowledge_bases(
     config = get_config()
     auth_manager = get_auth_manager()
 
-    api_url = f"{config.api_url}/table/kb_knowledge_base"
+    api_url = f"{config.api_url}/table/{KB_KNOWLEDGE_BASE_TABLE}"
 
     # Build query parameters
     query_params = {
@@ -128,23 +132,13 @@ def list_knowledge_bases(
                 if not isinstance(kb_item, dict):
                     continue
                     
-                # Safely extract values
+                # Safely extract values using helpers
                 kb_id = kb_item.get("sys_id", "")
                 title = kb_item.get("title", "")
                 description = kb_item.get("description", "")
-                
-                # Extract nested values safely
-                owner = ""
-                if isinstance(kb_item.get("owner"), dict):
-                    owner = kb_item["owner"].get("display_value", "")
-                
-                managers = ""
-                if isinstance(kb_item.get("kb_managers"), dict):
-                    managers = kb_item["kb_managers"].get("display_value", "")
-                
-                is_active = False
-                if kb_item.get("active") == "true":
-                    is_active = True
+                owner = extract_display_value(kb_item.get("owner"))
+                managers = extract_display_value(kb_item.get("kb_managers"))
+                is_active = parse_bool_field(kb_item.get("active"))
                 
                 created = kb_item.get("sys_created_on", "")
                 updated = kb_item.get("sys_updated_on", "")
@@ -188,21 +182,19 @@ def create_category(
     config = get_config()
     auth_manager = get_auth_manager()
 
-    api_url = f"{config.api_url}/table/kb_category"
+    api_url = f"{config.api_url}/table/{KB_CATEGORY_TABLE}"
 
     # Build request data
-    data = {
+    data = build_request_data({
         "label": title,
+        "description": description,
+        "parent": parent_category,
+        "parent_table": parent_table,
+    })
+    data.update({
         "kb_knowledge_base": knowledge_base,
         "active": str(active).lower(),
-    }
-
-    if description:
-        data["description"] = description
-    if parent_category:
-        data["parent"] = parent_category
-    if parent_table:
-        data["parent_table"] = parent_table
+    })
     
     # Make request
     try:
@@ -243,29 +235,19 @@ def create_article(
     config = get_config()
     auth_manager = get_auth_manager()
 
-    api_url = f"{config.api_url}/table/kb_knowledge"
+    api_url = f"{config.api_url}/table/{KB_KNOWLEDGE_TABLE}"
 
-    # Build request data
-    data = {
-        "short_description": short_description, # Servicenow typically uses short_description as title
+    # Build request data  
+    data = build_request_data({
+        "short_description": title,  # ServiceNow uses short_description as title
         "text": text,
+        "keywords": keywords,
+    })
+    data.update({
         "kb_knowledge_base": knowledge_base,
         "kb_category": category,
         "article_type": article_type,
-    }
-    
-    # If title is passed explicitly and differs from short_description, note that 
-    # we mapped short_description param to short_description field. 
-    # If the user meant 'title' param to be the main title, we use that.
-    # The original code mapped params.title -> short_description if present.
-    # We will favor the 'title' param if it's considered the main title.
-    # Actually, let's treat 'short_description' param as the primary short_description.
-    # If 'title' varies, we might overwrite, but typically they are the same in SN usage here.
-    if title:
-        data["short_description"] = title
-
-    if keywords:
-        data["keywords"] = keywords
+    })
 
     # Make request
     try:
@@ -306,21 +288,15 @@ def update_article(
     config = get_config()
     auth_manager = get_auth_manager()
 
-    api_url = f"{config.api_url}/table/kb_knowledge/{article_id}"
+    api_url = f"{config.api_url}/table/{KB_KNOWLEDGE_TABLE}/{article_id}"
 
     # Build request data
-    data = {}
-
-    if title:
-        data["short_description"] = title
-    if text:
-        data["text"] = text
-    if short_description:
-        data["short_description"] = short_description
-    if category:
-        data["kb_category"] = category
-    if keywords:
-        data["keywords"] = keywords
+    data = build_request_data({
+        "short_description": title or short_description,
+        "text": text,
+        "kb_category": category,
+        "keywords": keywords,
+    })
 
     # Make request
     try:
@@ -358,15 +334,13 @@ def publish_article(
     config = get_config()
     auth_manager = get_auth_manager()
 
-    api_url = f"{config.api_url}/table/kb_knowledge/{article_id}"
+    api_url = f"{config.api_url}/table/{KB_KNOWLEDGE_TABLE}/{article_id}"
 
     # Build request data
-    data = {
-        "workflow_state": workflow_state,
-    }
-
-    if workflow_version:
-        data["workflow_version"] = workflow_version
+    data = build_request_data({
+        "workflow_version": workflow_version,
+    })
+    data["workflow_state"] = workflow_state
 
     # Make request
     try:
@@ -407,7 +381,7 @@ def list_articles(
     config = get_config()
     auth_manager = get_auth_manager()
 
-    api_url = f"{config.api_url}/table/kb_knowledge"
+    api_url = f"{config.api_url}/table/{KB_KNOWLEDGE_TABLE}"
 
     # Build query parameters
     query_params = {
@@ -458,22 +432,12 @@ def list_articles(
                 if not isinstance(article_item, dict):
                     continue
                     
-                # Safely extract values
+                # Safely extract values using helpers
                 article_id = article_item.get("sys_id", "")
                 title = article_item.get("short_description", "")
-                
-                # Extract nested values safely
-                kb_name = ""
-                if isinstance(article_item.get("kb_knowledge_base"), dict):
-                    kb_name = article_item["kb_knowledge_base"].get("display_value", "")
-                
-                cat_name = ""
-                if isinstance(article_item.get("kb_category"), dict):
-                    cat_name = article_item["kb_category"].get("display_value", "")
-                
-                wf_state = ""
-                if isinstance(article_item.get("workflow_state"), dict):
-                    wf_state = article_item["workflow_state"].get("display_value", "")
+                kb_name = extract_display_value(article_item.get("kb_knowledge_base"))
+                cat_name = extract_display_value(article_item.get("kb_category"))
+                wf_state = extract_display_value(article_item.get("workflow_state"))
                 
                 created = article_item.get("sys_created_on", "")
                 updated = article_item.get("sys_updated_on", "")
@@ -511,7 +475,7 @@ def get_article(
     config = get_config()
     auth_manager = get_auth_manager()
 
-    api_url = f"{config.api_url}/table/kb_knowledge/{article_id}"
+    api_url = f"{config.api_url}/table/{KB_KNOWLEDGE_TABLE}/{article_id}"
 
     # Build query parameters
     query_params = {
@@ -540,27 +504,14 @@ def get_article(
         if not result or not isinstance(result, dict):
             return f"Article with ID {article_id} not found"
 
-        # Extract values safely
+        # Extract values safely using helpers
         article_id = result.get("sys_id", "")
         title = result.get("short_description", "")
         text = result.get("text", "")
-        
-        # Extract nested values safely
-        knowledge_base = ""
-        if isinstance(result.get("kb_knowledge_base"), dict):
-            knowledge_base = result["kb_knowledge_base"].get("display_value", "")
-        
-        category = ""
-        if isinstance(result.get("kb_category"), dict):
-            category = result["kb_category"].get("display_value", "")
-        
-        workflow_state = ""
-        if isinstance(result.get("workflow_state"), dict):
-            workflow_state = result["workflow_state"].get("display_value", "")
-        
-        author = ""
-        if isinstance(result.get("author"), dict):
-            author = result["author"].get("display_value", "")
+        knowledge_base = extract_display_value(result.get("kb_knowledge_base"))
+        category = extract_display_value(result.get("kb_category"))
+        workflow_state = extract_display_value(result.get("workflow_state"))
+        author = extract_display_value(result.get("author"))
         
         keywords = result.get("keywords", "")
         article_type = result.get("article_type", "")
@@ -608,7 +559,7 @@ def list_categories(
     config = get_config()
     auth_manager = get_auth_manager()
 
-    api_url = f"{config.api_url}/table/kb_category"
+    api_url = f"{config.api_url}/table/{KB_CATEGORY_TABLE}"
 
     # Build query parameters
     query_params = {
@@ -659,34 +610,13 @@ def list_categories(
                 if not isinstance(category_item, dict):
                     continue
                     
-                # Safely extract values
+                # Safely extract values using helpers
                 category_id = category_item.get("sys_id", "")
                 title = category_item.get("label", "")
                 description = category_item.get("description", "")
-                
-                # Extract knowledge base
-                kb_val = ""
-                kb_field = category_item.get("kb_knowledge_base")
-                if isinstance(kb_field, dict):
-                    kb_val = kb_field.get("display_value", "")
-                elif isinstance(kb_field, str):
-                    kb_val = kb_field
-                
-                # Extract parent category
-                parent_val = ""
-                parent_field = category_item.get("parent")
-                if isinstance(parent_field, dict):
-                    parent_val = parent_field.get("display_value", "")
-                elif isinstance(parent_field, str):
-                    parent_val = parent_field
-                
-                # Convert active to boolean
-                is_active = False
-                active_field = category_item.get("active")
-                if isinstance(active_field, str):
-                    is_active = active_field.lower() == "true"
-                elif isinstance(active_field, bool):
-                    is_active = active_field
+                kb_val = extract_display_value(category_item.get("kb_knowledge_base"))
+                parent_val = extract_display_value(category_item.get("parent"))
+                is_active = parse_bool_field(category_item.get("active"))
                 
                 created = category_item.get("sys_created_on", "")
                 updated = category_item.get("sys_updated_on", "")

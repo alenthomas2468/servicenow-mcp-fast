@@ -4,18 +4,29 @@ Story management tools for the ServiceNow MCP server.
 This module provides tools for managing stories in ServiceNow.
 """
 
+import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
-import json
+from typing import Optional
 
 import requests
 from pydantic import Field
 
 from servicenow_mcp.application import mcp, get_auth_manager, get_config
 from servicenow_mcp.utils import http_client
+from servicenow_mcp.utils.helpers import (
+    build_request_data,
+    format_success_response,
+    format_error_response,
+    format_list_response,
+)
 
 logger = logging.getLogger(__name__)
+
+# Table name constants
+STORY_TABLE = "rm_story"
+STORY_DEPENDENCY_TABLE = "m2m_story_dependencies"
+
 
 @mcp.tool()
 def create_story(
@@ -36,48 +47,36 @@ def create_story(
     config = get_config()
     auth_manager = get_auth_manager()
     
-    # Prepare the request data
-    data = {
-        "short_description": short_description,
-        "acceptance_criteria": acceptance_criteria,
-        "story_points": story_points,
-    }
-       
-    # Add optional fields if provided
-    if description:
-        data["description"] = description
-    if state:
-        data["state"] = state
-    if assignment_group:
-        data["assignment_group"] = assignment_group
-    if assigned_to:
-        data["assigned_to"] = assigned_to
-    if epic:
-        data["epic"] = epic
-    if project:
-        data["project"] = project
-    if work_notes:
-        data["work_notes"] = work_notes
+    # Build request data using helper
+    data = build_request_data(
+        required_fields={
+            "short_description": short_description,
+            "acceptance_criteria": acceptance_criteria,
+            "story_points": story_points,
+        },
+        optional_fields={
+            "description": description,
+            "state": state,
+            "assignment_group": assignment_group,
+            "assigned_to": assigned_to,
+            "epic": epic,
+            "project": project,
+            "work_notes": work_notes,
+        }
+    )
     
-    # Make the API request
     try:
-        headers = auth_manager.get_headers()
-        url = f"{config.instance_url}/api/now/table/rm_story"
-        
-        response = http_client.post(url, json=data, headers=headers)
+        url = f"{config.instance_url}/api/now/table/{STORY_TABLE}"
+        response = http_client.post(url, json=data, headers=auth_manager.get_headers())
         response.raise_for_status()
         
         result = response.json()
-        
-        output = {
-            "success": True,
-            "message": "Story created successfully",
-            "story": result["result"],
-        }
-        return json.dumps(output, indent=2)
+        return format_success_response("Story created successfully", story=result["result"])
+
     except requests.exceptions.RequestException as e:
         logger.error(f"Error creating story: {e}")
-        return f"Error creating story: {str(e)}"
+        return format_error_response("create story", e)
+
 
 @mcp.tool()
 def update_story(
@@ -99,50 +98,35 @@ def update_story(
     config = get_config()
     auth_manager = get_auth_manager()
     
-    # Prepare the request data
-    data = {}
+    # Build request data using helper
+    data = build_request_data(
+        required_fields={},
+        optional_fields={
+            "short_description": short_description,
+            "acceptance_criteria": acceptance_criteria,
+            "description": description,
+            "state": state,
+            "assignment_group": assignment_group,
+            "story_points": story_points,
+            "assigned_to": assigned_to,
+            "epic": epic,
+            "project": project,
+            "work_notes": work_notes,
+        }
+    )
     
-    # Add optional fields if provided
-    if short_description:
-        data["short_description"] = short_description
-    if acceptance_criteria:
-        data["acceptance_criteria"] = acceptance_criteria
-    if description:
-        data["description"] = description
-    if state:
-        data["state"] = state
-    if assignment_group:
-        data["assignment_group"] = assignment_group
-    if story_points is not None:
-        data["story_points"] = story_points
-    if assigned_to:
-        data["assigned_to"] = assigned_to
-    if epic:
-        data["epic"] = epic
-    if project:
-        data["project"] = project
-    if work_notes:
-        data["work_notes"] = work_notes
-    
-    # Make the API request
     try:
-        headers = auth_manager.get_headers()
-        url = f"{config.instance_url}/api/now/table/rm_story/{story_id}"
-        
-        response = http_client.put(url, json=data, headers=headers)
+        url = f"{config.instance_url}/api/now/table/{STORY_TABLE}/{story_id}"
+        response = http_client.put(url, json=data, headers=auth_manager.get_headers())
         response.raise_for_status()
         
         result = response.json()
-        
-        output = {
-            "success": True,
-            "message": "Story updated successfully",
-            "story": result["result"],
-        }
-        return json.dumps(output, indent=2)
+        return format_success_response("Story updated successfully", story=result["result"])
+
     except requests.exceptions.RequestException as e:
         logger.error(f"Error updating story: {e}")
-        return f"Error updating story: {str(e)}"
+        return format_error_response("update story", e)
+
 
 @mcp.tool()
 def list_stories(
@@ -177,42 +161,28 @@ def list_stories(
         elif timeframe == "completed":
             query_parts.append(f"end_date<{now}")
     
-    # Add any additional query string
     if query:
         query_parts.append(query)
-    
-    # Combine query parts
-    sysparm_query = "^".join(query_parts) if query_parts else ""
     
     params = {
         "sysparm_limit": limit,
         "sysparm_offset": offset,
-        "sysparm_query": sysparm_query,
+        "sysparm_query": "^".join(query_parts) if query_parts else "",
         "sysparm_display_value": "true",
     }
     
     try:
-        headers = auth_manager.get_headers()
-        url = f"{config.instance_url}/api/now/table/rm_story"
-        
-        response = http_client.get(url, headers=headers, params=params)
+        url = f"{config.instance_url}/api/now/table/{STORY_TABLE}"
+        response = http_client.get(url, headers=auth_manager.get_headers(), params=params)
         response.raise_for_status()
         
-        result = response.json()
-        
-        stories = result.get("result", [])
-        count = len(stories)
-        
-        output = {
-            "success": True,
-            "stories": stories,
-            "count": count,
-            "total": count, 
-        }
-        return json.dumps(output, indent=2)
+        stories = response.json().get("result", [])
+        return format_list_response(stories, "stories", limit, offset)
+
     except requests.exceptions.RequestException as e:
         logger.error(f"Error listing stories: {e}")
-        return f"Error listing stories: {str(e)}"
+        return format_error_response("list stories", e)
+
 
 @mcp.tool()
 def list_story_dependencies(
@@ -230,48 +200,32 @@ def list_story_dependencies(
     
     # Build the query
     query_parts = []
-    
     if dependent_story:
         query_parts.append(f"dependent_story={dependent_story}")
     if prerequisite_story:
         query_parts.append(f"prerequisite_story={prerequisite_story}")
-    
-    # Add any additional query string
     if query:
         query_parts.append(query)
-    
-    # Combine query parts
-    sysparm_query = "^".join(query_parts) if query_parts else ""
     
     params = {
         "sysparm_limit": limit,
         "sysparm_offset": offset,
-        "sysparm_query": sysparm_query,
+        "sysparm_query": "^".join(query_parts) if query_parts else "",
         "sysparm_display_value": "true",
     }
     
     try:
-        headers = auth_manager.get_headers()
-        url = f"{config.instance_url}/api/now/table/m2m_story_dependencies"
-        
-        response = http_client.get(url, headers=headers, params=params)
+        url = f"{config.instance_url}/api/now/table/{STORY_DEPENDENCY_TABLE}"
+        response = http_client.get(url, headers=auth_manager.get_headers(), params=params)
         response.raise_for_status()
         
-        result = response.json()
-        
-        story_dependencies = result.get("result", [])
-        count = len(story_dependencies)
-        
-        output = {
-            "success": True,
-            "story_dependencies": story_dependencies,
-            "count": count,
-            "total": count,
-        }
-        return json.dumps(output, indent=2)
+        dependencies = response.json().get("result", [])
+        return format_list_response(dependencies, "story_dependencies", limit, offset)
+
     except requests.exceptions.RequestException as e:
         logger.error(f"Error listing story dependencies: {e}")
-        return f"Error listing story dependencies: {str(e)}"
+        return format_error_response("list story dependencies", e)
+
 
 @mcp.tool()
 def create_story_dependency(
@@ -284,29 +238,26 @@ def create_story_dependency(
     config = get_config()
     auth_manager = get_auth_manager()
     
-    # Prepare the request data
     data = {
         "dependent_story": dependent_story,
         "prerequisite_story": prerequisite_story,
     }
     
     try:
-        headers = auth_manager.get_headers()
-        url = f"{config.instance_url}/api/now/table/m2m_story_dependencies"
-        
-        response = http_client.post(url, json=data, headers=headers)
+        url = f"{config.instance_url}/api/now/table/{STORY_DEPENDENCY_TABLE}"
+        response = http_client.post(url, json=data, headers=auth_manager.get_headers())
         response.raise_for_status()
         
-        result = response.json()    
-        output = {
-            "success": True,
-            "message": "Story dependency created successfully",
-            "story_dependency": result["result"],
-        }
-        return json.dumps(output, indent=2)
+        result = response.json()
+        return format_success_response(
+            "Story dependency created successfully",
+            story_dependency=result["result"],
+        )
+
     except requests.exceptions.RequestException as e:
         logger.error(f"Error creating story dependency: {e}")
-        return f"Error creating story dependency: {str(e)}"
+        return format_error_response("create story dependency", e)
+
 
 @mcp.tool()
 def delete_story_dependency(
@@ -319,17 +270,12 @@ def delete_story_dependency(
     auth_manager = get_auth_manager()
     
     try:
-        headers = auth_manager.get_headers()
-        url = f"{config.instance_url}/api/now/table/m2m_story_dependencies/{dependency_id}"
-        
-        response = http_client.delete(url, headers=headers)
+        url = f"{config.instance_url}/api/now/table/{STORY_DEPENDENCY_TABLE}/{dependency_id}"
+        response = http_client.delete(url, headers=auth_manager.get_headers())
         response.raise_for_status()
         
-        output = {
-            "success": True,
-            "message": "Story dependency deleted successfully",
-        }
-        return json.dumps(output, indent=2)
+        return format_success_response("Story dependency deleted successfully")
+
     except requests.exceptions.RequestException as e:
         logger.error(f"Error deleting story dependency: {e}")
-        return f"Error deleting story dependency: {str(e)}"
+        return format_error_response("delete story dependency", e)

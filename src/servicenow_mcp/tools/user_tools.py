@@ -4,29 +4,42 @@ User management tools for the ServiceNow MCP server.
 This module provides tools for managing users and groups in ServiceNow.
 """
 
+import json
 import logging
 from typing import List, Optional
-import json
 
 import requests
 from pydantic import Field
 
 from servicenow_mcp.application import mcp, get_auth_manager, get_config
 from servicenow_mcp.utils import http_client
+from servicenow_mcp.utils.helpers import (
+    build_request_data,
+    resolve_record_id,
+    format_success_response,
+    format_error_response,
+    format_list_response,
+    extract_display_value,
+)
 
 logger = logging.getLogger(__name__)
+
+# Table name constants
+USER_TABLE = "sys_user"
+USER_ROLE_TABLE = "sys_user_role"
+USER_HAS_ROLE_TABLE = "sys_user_has_role"
+USER_GROUP_TABLE = "sys_user_group"
+USER_GROUP_MEMBER_TABLE = "sys_user_grmember"
 
 
 # --- Helper Functions ---
 
-def get_role_id(
-    role_name: str,
-) -> Optional[str]:
+def get_role_id(role_name: str) -> Optional[str]:
     """Get the sys_id of a role by its name."""
     config = get_config()
     auth_manager = get_auth_manager()
     
-    api_url = f"{config.api_url}/table/sys_user_role"
+    api_url = f"{config.api_url}/table/{USER_ROLE_TABLE}"
     query_params = {
         "sysparm_query": f"name={role_name}",
         "sysparm_limit": "1",
@@ -42,25 +55,19 @@ def get_role_id(
         response.raise_for_status()
 
         result = response.json().get("result", [])
-        if not result:
-            return None
-
-        return result[0].get("sys_id")
+        return result[0].get("sys_id") if result else None
 
     except requests.RequestException as e:
         logger.error(f"Failed to get role ID: {e}")
         return None
 
 
-def check_user_has_role(
-    user_id: str,
-    role_id: str,
-) -> bool:
+def check_user_has_role(user_id: str, role_id: str) -> bool:
     """Check if a user has a specific role."""
     config = get_config()
     auth_manager = get_auth_manager()
     
-    api_url = f"{config.api_url}/table/sys_user_has_role"
+    api_url = f"{config.api_url}/table/{USER_HAS_ROLE_TABLE}"
     query_params = {
         "sysparm_query": f"user={user_id}^role={role_id}",
         "sysparm_limit": "1",
@@ -83,34 +90,25 @@ def check_user_has_role(
         return False
 
 
-def assign_roles_to_user_impl(
-    user_id: str,
-    roles: List[str],
-) -> bool:
+def assign_roles_to_user_impl(user_id: str, roles: List[str]) -> bool:
     """Assign roles to a user in ServiceNow."""
     config = get_config()
     auth_manager = get_auth_manager()
     
-    api_url = f"{config.api_url}/table/sys_user_has_role"
+    api_url = f"{config.api_url}/table/{USER_HAS_ROLE_TABLE}"
 
     success = True
     for role in roles:
-        # First check if the role exists
         role_id = get_role_id(role)
         if not role_id:
             logger.warning(f"Role '{role}' not found, skipping assignment")
             continue
 
-        # Check if the user already has this role
         if check_user_has_role(user_id, role_id):
             logger.info(f"User already has role '{role}', skipping assignment")
             continue
 
-        # Create the user role assignment
-        data = {
-            "user": user_id,
-            "role": role_id,
-        }
+        data = {"user": user_id, "role": role_id}
 
         try:
             response = http_client.post(
@@ -149,33 +147,28 @@ def create_user(
     """
     config = get_config()
     auth_manager = get_auth_manager()
-    api_url = f"{config.api_url}/table/sys_user"
+    api_url = f"{config.api_url}/table/{USER_TABLE}"
 
-    # Build request data
-    data = {
-        "user_name": user_name,
-        "first_name": first_name,
-        "last_name": last_name,
-        "email": email,
-        "active": str(active).lower(),
-    }
+    # Build request data using helper
+    data = build_request_data(
+        required_fields={
+            "user_name": user_name,
+            "first_name": first_name,
+            "last_name": last_name,
+            "email": email,
+            "active": active,
+        },
+        optional_fields={
+            "title": title,
+            "department": department,
+            "manager": manager,
+            "phone": phone,
+            "mobile_phone": mobile_phone,
+            "location": location,
+            "user_password": password,  # Note: field name is user_password in ServiceNow
+        }
+    )
 
-    if title:
-        data["title"] = title
-    if department:
-        data["department"] = department
-    if manager:
-        data["manager"] = manager
-    if phone:
-        data["phone"] = phone
-    if mobile_phone:
-        data["mobile_phone"] = mobile_phone
-    if location:
-        data["location"] = location
-    if password:
-        data["user_password"] = password
-
-    # Make request
     try:
         response = http_client.post(
             api_url,
@@ -191,13 +184,15 @@ def create_user(
         if roles and result.get("sys_id"):
             assign_roles_to_user_impl(result.get("sys_id"), roles)
 
-        output = {
-            "success": True,
-            "message": "User created successfully",
-            "user_id": result.get("sys_id"),
-            "user_name": result.get("user_name"),
-        }
-        return json.dumps(output, indent=2)
+        return format_success_response(
+            "User created successfully",
+            user_id=result.get("sys_id"),
+            user_name=result.get("user_name"),
+        )
+
+    except requests.RequestException as e:
+        logger.error(f"Failed to create user: {e}")
+        return format_error_response("create user", e)
 
     except requests.RequestException as e:
         logger.error(f"Failed to create user: {e}")
@@ -226,32 +221,22 @@ def update_user(
     """
     config = get_config()
     auth_manager = get_auth_manager()
-    api_url = f"{config.api_url}/table/sys_user/{user_id}"
+    api_url = f"{config.api_url}/table/{USER_TABLE}/{user_id}"
 
     # Build request data
-    data = {}
-    if user_name:
-        data["user_name"] = user_name
-    if first_name:
-        data["first_name"] = first_name
-    if last_name:
-        data["last_name"] = last_name
-    if email:
-        data["email"] = email
-    if title:
-        data["title"] = title
-    if department:
-        data["department"] = department
-    if manager:
-        data["manager"] = manager
-    if phone:
-        data["phone"] = phone
-    if mobile_phone:
-        data["mobile_phone"] = mobile_phone
-    if location:
-        data["location"] = location
-    if password:
-        data["user_password"] = password
+    data = build_request_data({
+        "user_name": user_name,
+        "first_name": first_name,
+        "last_name": last_name,
+        "email": email,
+        "title": title,
+        "department": department,
+        "manager": manager,
+        "phone": phone,
+        "mobile_phone": mobile_phone,
+        "location": location,
+        "user_password": password,  # Note: password field name change
+    })
     if active is not None:
         data["active"] = str(active).lower()
 
@@ -296,18 +281,16 @@ def get_user(
     config = get_config()
     auth_manager = get_auth_manager()
     
-    api_url = f"{config.api_url}/table/sys_user"
+    api_url = f"{config.api_url}/table/{USER_TABLE}"
     query_params = {}
 
+    # Resolve user ID
+    resolved_id = resolve_record_id(USER_TABLE, user_id, user_name, email)
+    if not resolved_id:
+        return "User not found"
+    
     # Build query parameters
-    if user_id:
-        query_params["sysparm_query"] = f"sys_id={user_id}"
-    elif user_name:
-        query_params["sysparm_query"] = f"user_name={user_name}"
-    elif email:
-        query_params["sysparm_query"] = f"email={email}"
-    else:
-        return "At least one search parameter is required"
+    query_params["sysparm_query"] = f"sys_id={resolved_id}"
 
     query_params["sysparm_limit"] = "1"
     query_params["sysparm_display_value"] = "true"
@@ -350,7 +333,7 @@ def list_users(
     config = get_config()
     auth_manager = get_auth_manager()
     
-    api_url = f"{config.api_url}/table/sys_user"
+    api_url = f"{config.api_url}/table/{USER_TABLE}"
     query_params = {
         "sysparm_limit": str(limit),
         "sysparm_offset": str(offset),
@@ -358,18 +341,16 @@ def list_users(
     }
 
     # Build query
-    query_parts = []
+    filters = []
     if active is not None:
-        query_parts.append(f"active={str(active).lower()}")
+        filters.append(f"active={str(active).lower()}")
     if department:
-        query_parts.append(f"department={department}")
+        filters.append(f"department={department}")
     if query:
-        query_parts.append(
-            f"^nameLIKE{query}^ORuser_nameLIKE{query}^ORemailLIKE{query}"
-        )
-
-    if query_parts:
-        query_params["sysparm_query"] = "^".join(query_parts)
+        filters.append(f"^nameLIKE{query}^ORuser_nameLIKE{query}^ORemailLIKE{query}")
+    
+    if filters:
+        query_params["sysparm_query"] = "^".join(filters)
 
     # Make request
     try:
@@ -427,24 +408,18 @@ def create_group(
     """
     config = get_config()
     auth_manager = get_auth_manager()
-    api_url = f"{config.api_url}/table/sys_user_group"
+    api_url = f"{config.api_url}/table/{USER_GROUP_TABLE}"
 
     # Build request data
-    data = {
+    data = build_request_data({
         "name": name,
-        "active": str(active).lower(),
-    }
-
-    if description:
-        data["description"] = description
-    if manager:
-        data["manager"] = manager
-    if parent:
-        data["parent"] = parent
-    if type:
-        data["type"] = type
-    if email:
-        data["email"] = email
+        "description": description,
+        "manager": manager,
+        "parent": parent,
+        "type": type,
+        "email": email,
+    })
+    data["active"] = str(active).lower()
 
     # Make request
     try:
@@ -492,22 +467,17 @@ def update_group(
     """
     config = get_config()
     auth_manager = get_auth_manager()
-    api_url = f"{config.api_url}/table/sys_user_group/{group_id}"
+    api_url = f"{config.api_url}/table/{USER_GROUP_TABLE}/{group_id}"
 
     # Build request data
-    data = {}
-    if name:
-        data["name"] = name
-    if description:
-        data["description"] = description
-    if manager:
-        data["manager"] = manager
-    if parent:
-        data["parent"] = parent
-    if type:
-        data["type"] = type
-    if email:
-        data["email"] = email
+    data = build_request_data({
+        "name": name,
+        "description": description,
+        "manager": manager,
+        "parent": parent,
+        "type": type,
+        "email": email,
+    })
     if active is not None:
         data["active"] = str(active).lower()
 
@@ -541,7 +511,7 @@ def add_group_members_impl(
 ) -> dict:
     config = get_config()
     auth_manager = get_auth_manager()
-    api_url = f"{config.api_url}/table/sys_user_grmember"
+    api_url = f"{config.api_url}/table/{USER_GROUP_MEMBER_TABLE}"
 
     success = True
     failed_members = []
@@ -558,7 +528,7 @@ def add_group_members_impl(
              # but here they return strings (JSON). We need direct logic.
              
              # Resolve user
-             u_api_url = f"{config.api_url}/table/sys_user"
+             u_api_url = f"{config.api_url}/table/{USER_TABLE}"
              u_params = {"sysparm_query": f"user_name={member}", "sysparm_limit": "1"}
              try:
                 resp = http_client.get(u_api_url, params=u_params, headers=auth_manager.get_headers(), timeout=config.timeout)
@@ -634,7 +604,7 @@ def list_groups(
     """
     config = get_config()
     auth_manager = get_auth_manager()
-    api_url = f"{config.api_url}/table/sys_user_group"
+    api_url = f"{config.api_url}/table/{USER_GROUP_TABLE}"
     query_params = {
         "sysparm_limit": str(limit),
         "sysparm_offset": str(offset),

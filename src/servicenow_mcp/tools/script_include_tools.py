@@ -4,17 +4,29 @@ Script Include tools for the ServiceNow MCP server.
 This module provides tools for managing script includes in ServiceNow.
 """
 
-import logging
-from typing import Any, Dict, Optional, List
 import json
+import logging
+from typing import Optional
 
 import requests
 from pydantic import Field
 
 from servicenow_mcp.application import mcp, get_auth_manager, get_config
 from servicenow_mcp.utils import http_client
+from servicenow_mcp.utils.helpers import (
+    build_request_data,
+    resolve_record_id,
+    format_success_response,
+    format_error_response,
+    format_list_response,
+    extract_display_value,
+    is_sys_id,
+)
 
 logger = logging.getLogger(__name__)
+
+# Table name constant
+SCRIPT_INCLUDE_TABLE = "sys_script_include"
 
 @mcp.tool()
 def list_script_includes(
@@ -29,8 +41,7 @@ def list_script_includes(
     auth_manager = get_auth_manager()
 
     try:
-        # Build the URL
-        url = f"{config.instance_url}/api/now/table/sys_script_include"
+        url = f"{config.instance_url}/api/now/table/{SCRIPT_INCLUDE_TABLE}"
         
         # Build query parameters
         query_params = {
@@ -43,26 +54,20 @@ def list_script_includes(
         
         # Add filters if provided
         query_parts = []
-        
         if active is not None:
             query_parts.append(f"active={str(active).lower()}")
-            
         if client_callable is not None:
             query_parts.append(f"client_callable={str(client_callable).lower()}")
-            
         if query:
             query_parts.append(f"nameLIKE{query}")
             
         if query_parts:
             query_params["sysparm_query"] = "^".join(query_parts)
             
-        # Make the request
-        headers = auth_manager.get_headers()
-        
         response = http_client.get(
             url,
             params=query_params,
-            headers=headers,
+            headers=auth_manager.get_headers(),
             timeout=config.timeout,
         )
         response.raise_for_status()
@@ -82,24 +87,16 @@ def list_script_includes(
                 "access": item.get("access"),
                 "created_on": item.get("sys_created_on"),
                 "updated_on": item.get("sys_updated_on"),
-                "created_by": item.get("sys_created_by", {}).get("display_value"),
-                "updated_by": item.get("sys_updated_by", {}).get("display_value"),
+                "created_by": extract_display_value(item.get("sys_created_by")),
+                "updated_by": extract_display_value(item.get("sys_updated_by")),
             }
             script_includes.append(script_include)
             
-        output = {
-            "success": True,
-            "message": f"Found {len(script_includes)} script includes",
-            "script_includes": script_includes,
-            "total": len(script_includes),
-            "limit": limit,
-            "offset": offset,
-        }
-        return json.dumps(output, indent=2)
+        return format_list_response(script_includes, "script_includes", limit, offset)
         
     except Exception as e:
         logger.error(f"Error listing script includes: {e}")
-        return f"Error listing script includes: {str(e)}"
+        return format_error_response("list script includes", e)
 
 
 @mcp.tool()
@@ -111,7 +108,6 @@ def get_script_include(
     auth_manager = get_auth_manager()
 
     try:
-        # Build query parameters
         query_params = {
             "sysparm_display_value": "true",
             "sysparm_exclude_reference_link": "true",
@@ -119,22 +115,19 @@ def get_script_include(
         }
         
         # Determine if we're querying by sys_id or name
-        if script_include_id.startswith("sys_id:") or (len(script_include_id) == 32 and all(c in "0123456789abcdef" for c in script_include_id)):
+        if script_include_id.startswith("sys_id:") or is_sys_id(script_include_id):
             sys_id = script_include_id.replace("sys_id:", "")
-            url = f"{config.instance_url}/api/now/table/sys_script_include/{sys_id}"
+            url = f"{config.instance_url}/api/now/table/{SCRIPT_INCLUDE_TABLE}/{sys_id}"
         else:
             # Query by name
-            url = f"{config.instance_url}/api/now/table/sys_script_include"
+            url = f"{config.instance_url}/api/now/table/{SCRIPT_INCLUDE_TABLE}"
             query_params["sysparm_query"] = f"name={script_include_id}"
             query_params["sysparm_limit"] = "1"
             
-        # Make the request
-        headers = auth_manager.get_headers()
-        
         response = http_client.get(
             url,
             params=query_params,
-            headers=headers,
+            headers=auth_manager.get_headers(),
             timeout=config.timeout,
         )
         response.raise_for_status()
@@ -165,20 +158,18 @@ def get_script_include(
             "access": item.get("access"),
             "created_on": item.get("sys_created_on"),
             "updated_on": item.get("sys_updated_on"),
-            "created_by": item.get("sys_created_by", {}).get("display_value"),
-            "updated_by": item.get("sys_updated_by", {}).get("display_value"),
+            "created_by": extract_display_value(item.get("sys_created_by")),
+            "updated_by": extract_display_value(item.get("sys_updated_by")),
         }
         
-        output = {
-            "success": True,
-            "message": f"Found script include: {item.get('name')}",
-            "script_include": script_include,
-        }
-        return json.dumps(output, indent=2)
+        return format_success_response(
+            f"Found script include: {item.get('name')}",
+            script_include=script_include,
+        )
         
     except Exception as e:
         logger.error(f"Error getting script include: {e}")
-        return f"Error getting script include: {str(e)}"
+        return format_error_response("get script include", e)
 
 
 @mcp.tool()
@@ -195,37 +186,32 @@ def create_script_include(
     config = get_config()
     auth_manager = get_auth_manager()
 
-    # Build the URL
-    url = f"{config.instance_url}/api/now/table/sys_script_include"
+    url = f"{config.instance_url}/api/now/table/{SCRIPT_INCLUDE_TABLE}"
     
-    # Build the request body
-    body = {
-        "name": name,
-        "script": script,
-        "active": str(active).lower(),
-        "client_callable": str(client_callable).lower(),
-        "access": access,
-    }
-    
-    if description:
-        body["description"] = description
+    # Build request data using helper
+    body = build_request_data(
+        required_fields={
+            "name": name,
+            "script": script,
+            "access": access,
+        },
+        optional_fields={
+            "description": description,
+            "api_name": api_name,
+            "client_callable": client_callable,
+            "active": active,
+        }
+    )
         
-    if api_name:
-        body["api_name"] = api_name
-        
-    # Make the request
-    headers = auth_manager.get_headers()
-    
     try:
         response = http_client.post(
             url,
             json=body,
-            headers=headers,
+            headers=auth_manager.get_headers(),
             timeout=config.timeout,
         )
         response.raise_for_status()
         
-        # Parse the response
         data = response.json()
         
         if "result" not in data:
@@ -233,17 +219,15 @@ def create_script_include(
             
         result = data["result"]
         
-        output = {
-            "success": True,
-            "message": f"Created script include: {result.get('name')}",
-            "script_include_id": result.get("sys_id"),
-            "script_include_name": result.get("name"),
-        }
-        return json.dumps(output, indent=2)
+        return format_success_response(
+            f"Created script include: {result.get('name')}",
+            script_include_id=result.get("sys_id"),
+            script_include_name=result.get("name"),
+        )
         
     except Exception as e:
         logger.error(f"Error creating script include: {e}")
-        return f"Error creating script include: {str(e)}"
+        return format_error_response("create script include", e)
 
 
 @mcp.tool()
@@ -267,7 +251,7 @@ def update_script_include(
     sys_id_to_update = script_include_id
     if not (len(script_include_id) == 32 and all(c in "0123456789abcdef" for c in script_include_id)):
          # It's likely a name, need to resolve to sys_id
-         search_url = f"{config.instance_url}/api/now/table/sys_script_include"
+         search_url = f"{config.instance_url}/api/now/table/{SCRIPT_INCLUDE_TABLE}"
          search_params = {"sysparm_query": f"name={script_include_id}", "sysparm_limit": "1", "sysparm_fields": "sys_id"}
          try:
              s_resp = http_client.get(search_url, params=search_params, headers=auth_manager.get_headers(), timeout=config.timeout)
@@ -281,7 +265,7 @@ def update_script_include(
 
 
     # Build the URL
-    url = f"{config.instance_url}/api/now/table/sys_script_include/{sys_id_to_update}"
+    url = f"{config.instance_url}/api/now/table/{SCRIPT_INCLUDE_TABLE}/{sys_id_to_update}"
     
     # Build the request body
     body = {}
@@ -349,42 +333,26 @@ def delete_script_include(
     config = get_config()
     auth_manager = get_auth_manager()
 
-    sys_id_to_delete = script_include_id
-    if not (len(script_include_id) == 32 and all(c in "0123456789abcdef" for c in script_include_id)):
-         # It's likely a name, need to resolve to sys_id
-         search_url = f"{config.instance_url}/api/now/table/sys_script_include"
-         search_params = {"sysparm_query": f"name={script_include_id}", "sysparm_limit": "1", "sysparm_fields": "sys_id"}
-         try:
-             s_resp = http_client.get(search_url, params=search_params, headers=auth_manager.get_headers(), timeout=config.timeout)
-             s_resp.raise_for_status()
-             s_res = s_resp.json().get("result", [])
-             if not s_res:
-                 return f"Script include not found: {script_include_id}"
-             sys_id_to_delete = s_res[0]["sys_id"]
-         except Exception as e:
-             return f"Error resolving script include ID: {str(e)}"
+    # Resolve script include ID to sys_id
+    sys_id = resolve_record_id(SCRIPT_INCLUDE_TABLE, script_include_id, lookup_field="name")
+    if not sys_id:
+        return f"Script include not found: {script_include_id}"
     
-    # Build the URL
-    url = f"{config.instance_url}/api/now/table/sys_script_include/{sys_id_to_delete}"
-    
-    # Make the request
-    headers = auth_manager.get_headers()
+    url = f"{config.instance_url}/api/now/table/{SCRIPT_INCLUDE_TABLE}/{sys_id}"
     
     try:
         response = http_client.delete(
             url,
-            headers=headers,
+            headers=auth_manager.get_headers(),
             timeout=config.timeout,
         )
         response.raise_for_status()
         
-        output = {
-            "success": True,
-            "message": f"Deleted script include: {script_include_id}",
-            "script_include_id": sys_id_to_delete,
-        }
-        return json.dumps(output, indent=2)
+        return format_success_response(
+            f"Deleted script include: {script_include_id}",
+            script_include_id=sys_id,
+        )
 
     except Exception as e:
         logger.error(f"Error deleting script include: {e}")
-        return f"Error deleting script include: {str(e)}"
+        return format_error_response("delete script include", e)

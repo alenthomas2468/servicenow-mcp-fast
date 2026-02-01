@@ -8,7 +8,6 @@ import os
 from typing import Dict, Optional, Union
 
 import requests
-from requests.auth import HTTPBasicAuth
 
 from servicenow_mcp.utils.config import AuthConfig, AuthType
 

@@ -12,6 +12,7 @@ import requests
 from pydantic import Field
 
 from servicenow_mcp.application import mcp, get_auth_manager, get_config
+from servicenow_mcp.utils import http_client
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ def list_workflows(
         headers = auth_manager.get_headers()
         url = f"{config.instance_url}/api/now/table/wf_workflow"
         
-        response = requests.get(url, headers=headers, params=query_params)
+        response = http_client.get(url, headers=headers, params=query_params)
         response.raise_for_status()
         
         result = response.json()
@@ -87,7 +88,7 @@ def get_workflow_details(
         headers = auth_manager.get_headers()
         url = f"{config.instance_url}/api/now/table/wf_workflow/{workflow_id}"
         
-        response = requests.get(url, headers=headers)
+        response = http_client.get(url, headers=headers)
         response.raise_for_status()
         
         result = response.json()
@@ -124,7 +125,7 @@ def list_workflow_versions(
         headers = auth_manager.get_headers()
         url = f"{config.instance_url}/api/now/table/wf_workflow_version"
         
-        response = requests.get(url, headers=headers, params=query_params)
+        response = http_client.get(url, headers=headers, params=query_params)
         response.raise_for_status()
         
         result = response.json()
@@ -164,7 +165,7 @@ def get_workflow_activities(
                 "sysparm_orderby": "version DESC",
             }
             
-            version_response = requests.get(version_url, headers=headers, params=version_params)
+            version_response = http_client.get(version_url, headers=headers, params=version_params)
             version_response.raise_for_status()
             
             version_result = version_response.json()
@@ -187,7 +188,7 @@ def get_workflow_activities(
             "sysparm_orderby": "order",
         }
         
-        activities_response = requests.get(activities_url, headers=headers, params=activities_params)
+        activities_response = http_client.get(activities_url, headers=headers, params=activities_params)
         activities_response.raise_for_status()
         
         activities_result = activities_response.json()
@@ -238,7 +239,7 @@ def create_workflow(
         headers = auth_manager.get_headers()
         url = f"{config.instance_url}/api/now/table/wf_workflow"
         
-        response = requests.post(url, headers=headers, json=data)
+        response = http_client.post(url, headers=headers, json=data)
         response.raise_for_status()
         
         result = response.json()
@@ -289,7 +290,7 @@ def update_workflow(
         headers = auth_manager.get_headers()
         url = f"{config.instance_url}/api/now/table/wf_workflow/{workflow_id}"
         
-        response = requests.patch(url, headers=headers, json=data)
+        response = http_client.patch(url, headers=headers, json=data)
         response.raise_for_status()
         
         result = response.json()
@@ -320,7 +321,7 @@ def activate_workflow(
         headers = auth_manager.get_headers()
         url = f"{config.instance_url}/api/now/table/wf_workflow/{workflow_id}"
         
-        response = requests.patch(url, headers=headers, json=data)
+        response = http_client.patch(url, headers=headers, json=data)
         response.raise_for_status()
         
         result = response.json()
@@ -350,7 +351,7 @@ def deactivate_workflow(
         headers = auth_manager.get_headers()
         url = f"{config.instance_url}/api/now/table/wf_workflow/{workflow_id}"
         
-        response = requests.patch(url, headers=headers, json=data)
+        response = http_client.patch(url, headers=headers, json=data)
         response.raise_for_status()
         
         result = response.json()

@@ -58,6 +58,11 @@ def parse_args():
         help="Server port",
         default=int(os.environ.get("PORT", "8080")),
     )
+    parser.add_argument(
+        "--ssl-cert-path",
+        help="Path to SSL certificate file (.crt) for private network instances",
+        default=os.environ.get("SERVICENOW_SSL_CERT_PATH"),
+    )
 
     # Authentication
     auth_group = parser.add_argument_group("Authentication")
@@ -218,9 +223,10 @@ def create_config_and_auth() -> Tuple[ServerConfig, AuthManager]:
         timeout=args.timeout,
         port=args.port,
         script_execution_api_resource_path=script_execution_api_resource_path,
+        ssl_cert_path=args.ssl_cert_path,
     )
     
     # Create AuthManager
-    auth_manager = AuthManager(final_auth_config, instance_url)
+    auth_manager = AuthManager(final_auth_config, instance_url, args.ssl_cert_path)
     
     return server_config, auth_manager

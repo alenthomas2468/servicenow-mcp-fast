@@ -5,7 +5,7 @@ Authentication manager for the ServiceNow MCP server.
 import base64
 import logging
 import os
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 import requests
 from requests.auth import HTTPBasicAuth
@@ -24,16 +24,18 @@ class AuthManager:
     different authentication methods.
     """
     
-    def __init__(self, config: AuthConfig, instance_url: str = None):
+    def __init__(self, config: AuthConfig, instance_url: str = None, ssl_cert_path: Optional[str] = None):
         """
         Initialize the authentication manager.
         
         Args:
             config: Authentication configuration.
             instance_url: ServiceNow instance URL.
+            ssl_cert_path: Optional path to SSL certificate for private network instances.
         """
         self.config = config
         self.instance_url = instance_url
+        self.ssl_cert_path = ssl_cert_path
         self.token: Optional[str] = None
         self.token_type: Optional[str] = None
     
@@ -107,7 +109,8 @@ class AuthManager:
         }
         
         logger.info("Attempting client_credentials grant...")
-        response = requests.post(token_url, headers=headers, data=data_client_credentials)
+        ssl_verify: Union[bool, str] = self.ssl_cert_path if self.ssl_cert_path else True
+        response = requests.post(token_url, headers=headers, data=data_client_credentials, verify=ssl_verify)
         
         logger.info(f"client_credentials response status: {response.status_code}")
         logger.info(f"client_credentials response body: {response.text}")
@@ -127,7 +130,7 @@ class AuthManager:
             }
             
             logger.info("Attempting password grant...")
-            response = requests.post(token_url, headers=headers, data=data_password)
+            response = requests.post(token_url, headers=headers, data=data_password, verify=ssl_verify)
             
             logger.info(f"password grant response status: {response.status_code}")
             logger.info(f"password grant response body: {response.text}")

@@ -12,6 +12,7 @@ import requests
 from pydantic import Field
 
 from servicenow_mcp.application import mcp, get_auth_manager, get_config
+from servicenow_mcp.utils import http_client
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ def create_knowledge_base(
 
     # Make request
     try:
-        response = requests.post(
+        response = http_client.post(
             api_url,
             json=data,
             headers=auth_manager.get_headers(),
@@ -101,7 +102,7 @@ def list_knowledge_bases(
 
     # Make request
     try:
-        response = requests.get(
+        response = http_client.get(
             api_url,
             params=query_params,
             headers=auth_manager.get_headers(),
@@ -205,7 +206,7 @@ def create_category(
     
     # Make request
     try:
-        response = requests.post(
+        response = http_client.post(
             api_url,
             json=data,
             headers=auth_manager.get_headers(),
@@ -268,7 +269,7 @@ def create_article(
 
     # Make request
     try:
-        response = requests.post(
+        response = http_client.post(
             api_url,
             json=data,
             headers=auth_manager.get_headers(),
@@ -323,7 +324,7 @@ def update_article(
 
     # Make request
     try:
-        response = requests.patch(
+        response = http_client.patch(
             api_url,
             json=data,
             headers=auth_manager.get_headers(),
@@ -369,7 +370,7 @@ def publish_article(
 
     # Make request
     try:
-        response = requests.patch(
+        response = http_client.patch(
             api_url,
             json=data,
             headers=auth_manager.get_headers(),
@@ -431,7 +432,7 @@ def list_articles(
     
     # Make request
     try:
-        response = requests.get(
+        response = http_client.get(
             api_url,
             params=query_params,
             headers=auth_manager.get_headers(),
@@ -519,7 +520,7 @@ def get_article(
 
     # Make request
     try:
-        response = requests.get(
+        response = http_client.get(
             api_url,
             params=query_params,
             headers=auth_manager.get_headers(),
@@ -632,7 +633,7 @@ def list_categories(
 
     # Make request
     try:
-        response = requests.get(
+        response = http_client.get(
             api_url,
             params=query_params,
             headers=auth_manager.get_headers(),

@@ -13,6 +13,7 @@ import requests
 from pydantic import Field
 
 from servicenow_mcp.application import mcp, get_auth_manager, get_config
+from servicenow_mcp.utils import http_client
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +64,7 @@ def create_story(
         headers = auth_manager.get_headers()
         url = f"{config.instance_url}/api/now/table/rm_story"
         
-        response = requests.post(url, json=data, headers=headers)
+        response = http_client.post(url, json=data, headers=headers)
         response.raise_for_status()
         
         result = response.json()
@@ -128,7 +129,7 @@ def update_story(
         headers = auth_manager.get_headers()
         url = f"{config.instance_url}/api/now/table/rm_story/{story_id}"
         
-        response = requests.put(url, json=data, headers=headers)
+        response = http_client.put(url, json=data, headers=headers)
         response.raise_for_status()
         
         result = response.json()
@@ -194,7 +195,7 @@ def list_stories(
         headers = auth_manager.get_headers()
         url = f"{config.instance_url}/api/now/table/rm_story"
         
-        response = requests.get(url, headers=headers, params=params)
+        response = http_client.get(url, headers=headers, params=params)
         response.raise_for_status()
         
         result = response.json()
@@ -253,7 +254,7 @@ def list_story_dependencies(
         headers = auth_manager.get_headers()
         url = f"{config.instance_url}/api/now/table/m2m_story_dependencies"
         
-        response = requests.get(url, headers=headers, params=params)
+        response = http_client.get(url, headers=headers, params=params)
         response.raise_for_status()
         
         result = response.json()
@@ -293,7 +294,7 @@ def create_story_dependency(
         headers = auth_manager.get_headers()
         url = f"{config.instance_url}/api/now/table/m2m_story_dependencies"
         
-        response = requests.post(url, json=data, headers=headers)
+        response = http_client.post(url, json=data, headers=headers)
         response.raise_for_status()
         
         result = response.json()    
@@ -321,7 +322,7 @@ def delete_story_dependency(
         headers = auth_manager.get_headers()
         url = f"{config.instance_url}/api/now/table/m2m_story_dependencies/{dependency_id}"
         
-        response = requests.delete(url, headers=headers)
+        response = http_client.delete(url, headers=headers)
         response.raise_for_status()
         
         output = {

@@ -12,6 +12,7 @@ import requests
 from pydantic import Field
 
 from servicenow_mcp.application import mcp, get_auth_manager, get_config
+from servicenow_mcp.utils import http_client
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ def get_role_id(
     }
 
     try:
-        response = requests.get(
+        response = http_client.get(
             api_url,
             params=query_params,
             headers=auth_manager.get_headers(),
@@ -66,7 +67,7 @@ def check_user_has_role(
     }
 
     try:
-        response = requests.get(
+        response = http_client.get(
             api_url,
             params=query_params,
             headers=auth_manager.get_headers(),
@@ -112,7 +113,7 @@ def assign_roles_to_user_impl(
         }
 
         try:
-            response = requests.post(
+            response = http_client.post(
                 api_url,
                 json=data,
                 headers=auth_manager.get_headers(),
@@ -176,7 +177,7 @@ def create_user(
 
     # Make request
     try:
-        response = requests.post(
+        response = http_client.post(
             api_url,
             json=data,
             headers=auth_manager.get_headers(),
@@ -256,7 +257,7 @@ def update_user(
 
     # Make request
     try:
-        response = requests.patch(
+        response = http_client.patch(
             api_url,
             json=data,
             headers=auth_manager.get_headers(),
@@ -313,7 +314,7 @@ def get_user(
 
     # Make request
     try:
-        response = requests.get(
+        response = http_client.get(
             api_url,
             params=query_params,
             headers=auth_manager.get_headers(),
@@ -372,7 +373,7 @@ def list_users(
 
     # Make request
     try:
-        response = requests.get(
+        response = http_client.get(
             api_url,
             params=query_params,
             headers=auth_manager.get_headers(),
@@ -447,7 +448,7 @@ def create_group(
 
     # Make request
     try:
-        response = requests.post(
+        response = http_client.post(
             api_url,
             json=data,
             headers=auth_manager.get_headers(),
@@ -512,7 +513,7 @@ def update_group(
 
     # Make request
     try:
-        response = requests.patch(
+        response = http_client.patch(
             api_url,
             json=data,
             headers=auth_manager.get_headers(),
@@ -560,7 +561,7 @@ def add_group_members_impl(
              u_api_url = f"{config.api_url}/table/sys_user"
              u_params = {"sysparm_query": f"user_name={member}", "sysparm_limit": "1"}
              try:
-                resp = requests.get(u_api_url, params=u_params, headers=auth_manager.get_headers(), timeout=config.timeout)
+                resp = http_client.get(u_api_url, params=u_params, headers=auth_manager.get_headers(), timeout=config.timeout)
                 if resp.status_code == 200:
                     results = resp.json().get("result", [])
                     if results:
@@ -568,7 +569,7 @@ def add_group_members_impl(
                     else:
                         # Try email
                         u_params["sysparm_query"] = f"email={member}"
-                        resp = requests.get(u_api_url, params=u_params, headers=auth_manager.get_headers(), timeout=config.timeout)
+                        resp = http_client.get(u_api_url, params=u_params, headers=auth_manager.get_headers(), timeout=config.timeout)
                         if resp.status_code == 200:
                              results = resp.json().get("result", [])
                              if results:
@@ -588,7 +589,7 @@ def add_group_members_impl(
         }
 
         try:
-            response = requests.post(
+            response = http_client.post(
                 api_url,
                 json=data,
                 headers=auth_manager.get_headers(),
@@ -654,7 +655,7 @@ def list_groups(
 
     # Make request
     try:
-        response = requests.get(
+        response = http_client.get(
             api_url,
             params=query_params,
             headers=auth_manager.get_headers(),

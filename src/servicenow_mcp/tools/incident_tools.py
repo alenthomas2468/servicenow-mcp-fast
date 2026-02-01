@@ -11,6 +11,7 @@ import requests
 from pydantic import Field
 
 from servicenow_mcp.application import mcp, get_auth_manager, get_config
+from servicenow_mcp.utils import http_client
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,7 @@ def create_incident(
 
     # Make request
     try:
-        response = requests.post(
+        response = http_client.post(
             api_url,
             json=data,
             headers=auth_manager.get_headers(),
@@ -115,7 +116,7 @@ def update_incident(
                 "sysparm_limit": 1,
             }
 
-            response = requests.get(
+            response = http_client.get(
                 query_url,
                 params=query_params,
                 headers=auth_manager.get_headers(),
@@ -166,7 +167,7 @@ def update_incident(
 
     # Make request
     try:
-        response = requests.put(
+        response = http_client.put(
             api_url,
             json=data,
             headers=auth_manager.get_headers(),
@@ -208,7 +209,7 @@ def add_comment(
                 "sysparm_limit": 1,
             }
 
-            response = requests.get(
+            response = http_client.get(
                 query_url,
                 params=query_params,
                 headers=auth_manager.get_headers(),
@@ -237,7 +238,7 @@ def add_comment(
 
     # Make request
     try:
-        response = requests.put(
+        response = http_client.put(
             api_url,
             json=data,
             headers=auth_manager.get_headers(),
@@ -279,7 +280,7 @@ def resolve_incident(
                 "sysparm_limit": 1,
             }
 
-            response = requests.get(
+            response = http_client.get(
                 query_url,
                 params=query_params,
                 headers=auth_manager.get_headers(),
@@ -308,7 +309,7 @@ def resolve_incident(
 
     # Make request
     try:
-        response = requests.put(
+        response = http_client.put(
             api_url,
             json=data,
             headers=auth_manager.get_headers(),
@@ -364,7 +365,7 @@ def list_incidents(
     
     # Make request
     try:
-        response = requests.get(
+        response = http_client.get(
             api_url,
             params=query_params,
             headers=auth_manager.get_headers(),
@@ -426,7 +427,7 @@ def get_incident_by_number(
 
     # Make request
     try:
-        response = requests.get(
+        response = http_client.get(
             api_url,
             params=query_params,
             headers=auth_manager.get_headers(),

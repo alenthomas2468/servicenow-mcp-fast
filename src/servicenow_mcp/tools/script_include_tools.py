@@ -12,6 +12,7 @@ import requests
 from pydantic import Field
 
 from servicenow_mcp.application import mcp, get_auth_manager, get_config
+from servicenow_mcp.utils import http_client
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ def list_script_includes(
         # Make the request
         headers = auth_manager.get_headers()
         
-        response = requests.get(
+        response = http_client.get(
             url,
             params=query_params,
             headers=headers,
@@ -130,7 +131,7 @@ def get_script_include(
         # Make the request
         headers = auth_manager.get_headers()
         
-        response = requests.get(
+        response = http_client.get(
             url,
             params=query_params,
             headers=headers,
@@ -216,7 +217,7 @@ def create_script_include(
     headers = auth_manager.get_headers()
     
     try:
-        response = requests.post(
+        response = http_client.post(
             url,
             json=body,
             headers=headers,
@@ -269,7 +270,7 @@ def update_script_include(
          search_url = f"{config.instance_url}/api/now/table/sys_script_include"
          search_params = {"sysparm_query": f"name={script_include_id}", "sysparm_limit": "1", "sysparm_fields": "sys_id"}
          try:
-             s_resp = requests.get(search_url, params=search_params, headers=auth_manager.get_headers(), timeout=config.timeout)
+             s_resp = http_client.get(search_url, params=search_params, headers=auth_manager.get_headers(), timeout=config.timeout)
              s_resp.raise_for_status()
              s_res = s_resp.json().get("result", [])
              if not s_res:
@@ -311,7 +312,7 @@ def update_script_include(
     headers = auth_manager.get_headers()
     
     try:
-        response = requests.patch(
+        response = http_client.patch(
             url,
             json=body,
             headers=headers,
@@ -354,7 +355,7 @@ def delete_script_include(
          search_url = f"{config.instance_url}/api/now/table/sys_script_include"
          search_params = {"sysparm_query": f"name={script_include_id}", "sysparm_limit": "1", "sysparm_fields": "sys_id"}
          try:
-             s_resp = requests.get(search_url, params=search_params, headers=auth_manager.get_headers(), timeout=config.timeout)
+             s_resp = http_client.get(search_url, params=search_params, headers=auth_manager.get_headers(), timeout=config.timeout)
              s_resp.raise_for_status()
              s_res = s_resp.json().get("result", [])
              if not s_res:
@@ -370,7 +371,7 @@ def delete_script_include(
     headers = auth_manager.get_headers()
     
     try:
-        response = requests.delete(
+        response = http_client.delete(
             url,
             headers=headers,
             timeout=config.timeout,

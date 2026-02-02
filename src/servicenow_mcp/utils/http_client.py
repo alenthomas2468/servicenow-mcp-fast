@@ -10,8 +10,6 @@ from typing import Any, Dict, Literal, Optional, Union
 
 import requests
 
-from servicenow_mcp.application import get_config
-
 logger = logging.getLogger(__name__)
 
 # Type alias for supported HTTP methods
@@ -26,6 +24,8 @@ def _get_ssl_verify() -> Union[bool, str]:
         Union[bool, str]: Path to .crt file if configured, otherwise True for default SSL verification.
     """
     try:
+        # Local import to avoid circular import
+        from servicenow_mcp.application import get_config
         config = get_config()
         if config.ssl_cert_path:
             logger.debug(f"Using SSL certificate: {config.ssl_cert_path}")

@@ -12,7 +12,6 @@ from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
 
 import requests
 
-from servicenow_mcp.application import get_auth_manager, get_config
 from servicenow_mcp.utils import http_client
 
 logger = logging.getLogger(__name__)
@@ -100,6 +99,9 @@ def resolve_record_id(
     # If it's already a sys_id, return it directly
     if is_sys_id(identifier):
         return identifier
+    
+    # Local import to avoid circular import with servicenow_mcp.application
+    from servicenow_mcp.application import get_auth_manager, get_config
     
     config = get_config()
     auth_manager = get_auth_manager()

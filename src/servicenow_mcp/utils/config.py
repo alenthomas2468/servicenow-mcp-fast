@@ -14,6 +14,7 @@ class AuthType(str, Enum):
     BASIC = "basic"
     OAUTH = "oauth"
     API_KEY = "api_key"
+    NOAUTH = "noauth"
 
 
 class BasicAuthConfig(BaseModel):

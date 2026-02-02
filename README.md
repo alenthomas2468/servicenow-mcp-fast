@@ -60,20 +60,56 @@ Common helper functions to reduce code duplication:
     python -m venv .venv
     ```
 2.  Activate the virtual environment.
+    on Windows cmd
+    ```cmd
+    .venv\Scripts\activate
+    ```
+    on Linux/macOS
+    ```bash
+    source .venv/bin/activate
+    ```
 3.  Install the package:
     ```bash
     pip install -e .
     ```
 
+
 ## Configuration
 
 Copy `.env.example` to `.env` and fill in your ServiceNow credentials.
 
+### SSL Configuration
+
+The server supports flexible SSL verification settings to handle corporate networks, proxies, and self-signed certificates.
+
+**1. Default Secure Mode (Recommended)**
+By default, SSL verification is enabled. If you use a custom corporate certificate, set the path:
+```properties
+# Uses the provided certificate for verification
+SERVICENOW_SSL_CERT_PATH=C:\path\to\your\corporate-ca.crt
+```
+
+**2. Disable SSL Verification (Testing Only)**
+To disable SSL verification (e.g., for local testing or dev instances), you must explicitly set the variable to `true`.
+```properties
+# API requests will skip SSL verification
+SERVICENOW_DISABLE_SSL_VERIFY=true
+```
+
+> **Note:** If `SERVICENOW_DISABLE_SSL_VERIFY` is not present, or set to `false`, the server will default to secure verification (using `SERVICENOW_SSL_CERT_PATH` if provided, or system defaults).
+
 ## Usage
 
 Run the server:
+
+Windows (cmd)
+```cmd
+.venv\Scripts\python.exe src\servicenow_mcp\server.py
+```
+
+Linux/macOS
 ```bash
-python src/servicenow_mcp/server.py
+.venv/bin/python src/servicenow_mcp/server.py
 ```
 
 ## Debugging with MCP Inspector
@@ -84,14 +120,23 @@ The [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector) is a b
 
 Use `npx` to run the inspector, pointing it at the server entry point:
 
+```cmd
+# On Windows (cmd)
+.venv\Scripts\activate
+set PYTHONPATH=src
+npx @modelcontextprotocol/inspector python src/servicenow_mcp/server.py
+```
+
 ```powershell
 # On Windows (PowerShell)
+. .venv\Scripts\Activate.ps1
 $env:PYTHONPATH = "src"
 npx @modelcontextprotocol/inspector python src/servicenow_mcp/server.py
 ```
 
 ```bash
 # On Linux/macOS
+source .venv/bin/activate
 PYTHONPATH=src npx @modelcontextprotocol/inspector python src/servicenow_mcp/server.py
 ```
 

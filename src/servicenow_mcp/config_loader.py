@@ -62,11 +62,25 @@ def parse_args():
         help="Path to SSL certificate file (.crt) for private network instances",
         default=os.environ.get("SERVICENOW_SSL_CERT_PATH"),
     )
+    
+    # SSL/Cert Logic
+    # 1. SERVICENOW_DISABLE_SSL_VERIFY=true (case-insensitive) -> disable_ssl_verify=True
+    # 2. Else -> disable_ssl_verify=False.
+    #    If SERVICENOW_SSL_CERT_PATH is set -> ssl_cert_path=path,
+    #    otherwise verification proceeds with default CA bundle.
+    
+    disable_ssl_env = os.environ.get("SERVICENOW_DISABLE_SSL_VERIFY")
+    
+    if disable_ssl_env and disable_ssl_env.lower() == "true":
+        disable_ssl = True
+    else:
+        disable_ssl = False
+
     parser.add_argument(
         "--disable-ssl-verify",
         action="store_true",
         help="Disable SSL certificate verification (NOT RECOMMENDED)",
-        default=os.environ.get("SERVICENOW_DISABLE_SSL_VERIFY", "false").lower() == "true",
+        default=disable_ssl,
     )
 
     # Authentication

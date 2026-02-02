@@ -16,24 +16,47 @@ logger = logging.getLogger(__name__)
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE"]
 
 
-def _get_ssl_verify() -> Union[bool, str]:
+def _get_ssl_verify(url: str = None) -> Union[bool, str, None]:
     """
     Get the SSL verification setting based on configuration.
     
+    Returns None (use requests default), False (disable), or certificate path.
+    
+    Args:
+        url: The URL being requested (not used, kept for API compatibility).
+    
     Returns:
-        Union[bool, str]: Path to .crt file if configured, otherwise True for default SSL verification.
+        Union[bool, str, None]: False to disable, path to .crt if configured, None for default.
     """
+    import os
+    
     try:
-        # Local import to avoid circular import
         from servicenow_mcp.application import get_config
         config = get_config()
-        if config.ssl_cert_path:
-            logger.debug(f"Using SSL certificate: {config.ssl_cert_path}")
-            return config.ssl_cert_path
+        
+        # Check if SSL verification is explicitly disabled
+        if config.disable_ssl_verify:
+            logger.warning("SSL verification is DISABLED - connection is not secure!")
+            return False
+        
+        # If custom SSL cert is configured, use it for all requests
+        if config.ssl_cert_path and config.ssl_cert_path.strip():
+            cert_path = config.ssl_cert_path.strip()
+            if os.path.exists(cert_path):
+                logger.debug(f"Using custom SSL certificate: {cert_path}")
+                return cert_path
+            else:
+                logger.warning(f"SSL certificate file not found: {cert_path}")
+        
+        # No custom cert - return None to use requests library default
+        return None
+        
     except RuntimeError:
-        # Config not initialized yet (e.g., during auth token fetch before full init)
-        pass
-    return True
+        # Config not initialized yet
+        return None
+    except Exception as e:
+        logger.warning(f"Error getting SSL config: {e}")
+        return None
 
 
 def request(
@@ -62,16 +85,25 @@ def request(
     Returns:
         requests.Response: The response object.
     """
-    return requests.request(
-        method=method,
-        url=url,
-        headers=headers,
-        params=params,
-        json=json,
-        data=data,
-        timeout=timeout,
-        verify=_get_ssl_verify(),
-    )
+    ssl_verify = _get_ssl_verify(url)
+    
+    # Build request kwargs
+    kwargs = {
+        "method": method,
+        "url": url,
+        "headers": headers,
+        "params": params,
+        "json": json,
+        "data": data,
+        "timeout": timeout,
+    }
+    
+    # Only add verify if we have a custom cert path
+    # Otherwise let requests use its default behavior
+    if ssl_verify is not None:
+        kwargs["verify"] = ssl_verify
+    
+    return requests.request(**kwargs)
 
 
 def get(

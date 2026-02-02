@@ -33,8 +33,7 @@ logger = logging.getLogger(__name__)
 def parse_args():
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description="ServiceNow MCP Server")
-
-    # Server configuration
+      # Server configuration
     parser.add_argument(
         "--instance-url",
         help="ServiceNow instance URL (e.g., https://instance.service-now.com)",
@@ -62,6 +61,12 @@ def parse_args():
         "--ssl-cert-path",
         help="Path to SSL certificate file (.crt) for private network instances",
         default=os.environ.get("SERVICENOW_SSL_CERT_PATH"),
+    )
+    parser.add_argument(
+        "--disable-ssl-verify",
+        action="store_true",
+        help="Disable SSL certificate verification (NOT RECOMMENDED)",
+        default=os.environ.get("SERVICENOW_DISABLE_SSL_VERIFY", "false").lower() == "true",
     )
 
     # Authentication
@@ -204,18 +209,20 @@ def create_config_and_auth() -> Tuple[ServerConfig, AuthManager]:
         final_auth_config = AuthConfig(type=auth_type, api_key=api_key_cfg)
         
     elif auth_type == AuthType.NOAUTH:
-         # NOAUTH implementation
-         final_auth_config = AuthConfig(type=auth_type)
+        # NOAUTH implementation
+        final_auth_config = AuthConfig(type=auth_type)
 
     else:
         raise ValueError(f"Unsupported authentication type: {auth_type}")
-
+    
     # Script execution path
     script_execution_api_resource_path = args.script_execution_api_resource_path or os.getenv(
         "SCRIPT_EXECUTION_API_RESOURCE_PATH"
     )
 
-    # Create ServerConfig
+    # Log SSL cert path only in debug mode
+    if args.debug and args.ssl_cert_path:
+        logger.debug(f"SSL cert path configured: {args.ssl_cert_path}")    # Create ServerConfig
     server_config = ServerConfig(
         instance_url=instance_url,
         auth=final_auth_config,
@@ -224,6 +231,7 @@ def create_config_and_auth() -> Tuple[ServerConfig, AuthManager]:
         port=args.port,
         script_execution_api_resource_path=script_execution_api_resource_path,
         ssl_cert_path=args.ssl_cert_path,
+        disable_ssl_verify=args.disable_ssl_verify,
     )
     
     # Create AuthManager

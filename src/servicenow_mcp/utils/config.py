@@ -60,6 +60,7 @@ class ServerConfig(BaseModel):
     port: int = 8080
     script_execution_api_resource_path: Optional[str] = None
     ssl_cert_path: Optional[str] = None  # Path to .crt file for SSL verification
+    disable_ssl_verify: bool = False  # Disable SSL verification (NOT RECOMMENDED)
 
     @property
     def api_url(self) -> str:

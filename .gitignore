@@ -35,3 +35,9 @@ venv.bak/
 .idea/
 *.swp
 *.swo
+
+# certs / secrets
+singtel-chain.crt
+
+# local test scripts
+test_incidents_api.py

@@ -66,7 +66,7 @@ def create_story(
     )
     
     try:
-        url = f"{config.instance_url}/api/now/table/{STORY_TABLE}"
+        url = f"{config.api_url}/table/{STORY_TABLE}"
         response = http_client.post(url, json=data, headers=auth_manager.get_headers())
         response.raise_for_status()
         
@@ -116,7 +116,7 @@ def update_story(
     )
     
     try:
-        url = f"{config.instance_url}/api/now/table/{STORY_TABLE}/{story_id}"
+        url = f"{config.api_url}/table/{STORY_TABLE}/{story_id}"
         response = http_client.put(url, json=data, headers=auth_manager.get_headers())
         response.raise_for_status()
         
@@ -172,7 +172,7 @@ def list_stories(
     }
     
     try:
-        url = f"{config.instance_url}/api/now/table/{STORY_TABLE}"
+        url = f"{config.api_url}/table/{STORY_TABLE}"
         response = http_client.get(url, headers=auth_manager.get_headers(), params=params)
         response.raise_for_status()
         
@@ -215,7 +215,7 @@ def list_story_dependencies(
     }
     
     try:
-        url = f"{config.instance_url}/api/now/table/{STORY_DEPENDENCY_TABLE}"
+        url = f"{config.api_url}/table/{STORY_DEPENDENCY_TABLE}"
         response = http_client.get(url, headers=auth_manager.get_headers(), params=params)
         response.raise_for_status()
         
@@ -244,7 +244,7 @@ def create_story_dependency(
     }
     
     try:
-        url = f"{config.instance_url}/api/now/table/{STORY_DEPENDENCY_TABLE}"
+        url = f"{config.api_url}/table/{STORY_DEPENDENCY_TABLE}"
         response = http_client.post(url, json=data, headers=auth_manager.get_headers())
         response.raise_for_status()
         
@@ -270,7 +270,7 @@ def delete_story_dependency(
     auth_manager = get_auth_manager()
     
     try:
-        url = f"{config.instance_url}/api/now/table/{STORY_DEPENDENCY_TABLE}/{dependency_id}"
+        url = f"{config.api_url}/table/{STORY_DEPENDENCY_TABLE}/{dependency_id}"
         response = http_client.delete(url, headers=auth_manager.get_headers())
         response.raise_for_status()
         

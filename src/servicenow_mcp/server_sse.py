@@ -15,7 +15,6 @@ import servicenow_mcp.tools.user_tools
 import servicenow_mcp.tools.story_tools
 import servicenow_mcp.tools.script_include_tools
 import servicenow_mcp.tools.knowledge_base
-import servicenow_mcp.tools.network_element_tools
 
 logger = logging.getLogger(__name__)
 

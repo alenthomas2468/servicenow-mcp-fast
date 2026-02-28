@@ -2,12 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copy source code and project config
+# Install dependencies
 COPY pyproject.toml .
-COPY src/ /app/src/
-
-# Install the package (source is now available)
 RUN pip install --no-cache-dir .
+
+# Copy source code
+COPY src/ /app/src/
 
 # Set environment variables
 ENV PYTHONPATH=/app/src

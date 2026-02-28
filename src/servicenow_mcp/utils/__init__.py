@@ -16,11 +16,9 @@ from servicenow_mcp.utils.helpers import (
     format_success_response,
     format_error_response,
     format_list_response,
-    format_kb_response,
     servicenow_api_call,
     extract_display_value,
     parse_bool_field,
-    validate_pagination,
 )
 
 __all__ = [
@@ -31,9 +29,7 @@ __all__ = [
     "format_success_response",
     "format_error_response",
     "format_list_response",
-    "format_kb_response",
     "servicenow_api_call",
     "extract_display_value",
     "parse_bool_field",
-    "validate_pagination",
 ]

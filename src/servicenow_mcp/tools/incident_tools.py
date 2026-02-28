@@ -20,7 +20,6 @@ from servicenow_mcp.utils.helpers import (
     format_error_response,
     format_list_response,
     extract_display_value,
-    validate_pagination,
 )
 
 logger = logging.getLogger(__name__)
@@ -260,7 +259,6 @@ def list_incidents(
     config = get_config()
     auth_manager = get_auth_manager()
     api_url = f"{config.api_url}/table/{INCIDENT_TABLE}"
-    limit, offset = validate_pagination(limit, offset)
 
     # Build query parameters
     query_params = {

@@ -19,6 +19,23 @@ logger = logging.getLogger(__name__)
 # Constants
 SYS_ID_LENGTH = 32
 SYS_ID_CHARS = set("0123456789abcdef")
+MAX_QUERY_LIMIT = 1000  # ServiceNow default max
+
+
+def validate_pagination(limit: int, offset: int) -> tuple[int, int]:
+    """
+    Validate and clamp pagination parameters to safe ranges.
+    
+    Args:
+        limit: Requested page size.
+        offset: Requested offset.
+        
+    Returns:
+        Tuple of (clamped_limit, clamped_offset).
+    """
+    limit = max(1, min(limit, MAX_QUERY_LIMIT))
+    offset = max(0, offset)
+    return limit, offset
 
 
 def is_sys_id(value: str) -> bool:

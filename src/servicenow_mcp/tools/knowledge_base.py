@@ -16,10 +16,7 @@ from servicenow_mcp.utils import http_client
 from servicenow_mcp.utils.helpers import (
     build_request_data,
     resolve_record_id,
-    format_success_response,
-    format_error_response,
     format_kb_response,
-    format_list_response,
     is_sys_id,
     extract_display_value,
     parse_bool_field
@@ -48,14 +45,12 @@ def create_knowledge_base(
     api_url = f"{config.api_url}/table/{KB_KNOWLEDGE_BASE_TABLE}"
 
     # Build request data
-    data = build_request_data(
-        required_fields={"title": title},
-        optional_fields={
-            "description": description,
-            "owner": owner,
-            "kb_managers": managers,
-        }
-    )
+    data = build_request_data({
+        "title": title,
+        "description": description,
+        "owner": owner,
+        "kb_managers": managers,
+    })
     data.update({
         "workflow_publish": publish_workflow,
         "workflow_retire": retire_workflow,
@@ -72,15 +67,11 @@ def create_knowledge_base(
         response.raise_for_status()
 
         result = response.json().get("result", {})
-        return format_success_response(
-            "Knowledge base created successfully",
-            kb_id=result.get("sys_id"),
-            title=result.get("title"),
-        )
+        return json.dumps(format_kb_response(result), indent=2)
 
     except requests.RequestException as e:
         logger.error(f"Failed to create knowledge base: {e}")
-        return format_error_response("create knowledge base", e)
+        return f"Failed to create knowledge base: {str(e)}"
 
 
 @mcp.tool()
@@ -175,7 +166,7 @@ def list_knowledge_bases(
 
     except requests.RequestException as e:
         logger.error(f"Failed to list knowledge bases: {e}")
-        return format_error_response("list knowledge bases", e)
+        return f"Failed to list knowledge bases: {str(e)}"
 
 
 @mcp.tool()
@@ -194,15 +185,16 @@ def create_category(
     api_url = f"{config.api_url}/table/{KB_CATEGORY_TABLE}"
 
     # Build request data
-    data = build_request_data(
-        required_fields={"label": title, "kb_knowledge_base": knowledge_base},
-        optional_fields={
-            "description": description,
-            "parent": parent_category,
-            "parent_table": parent_table,
-            "active": active,
-        }
-    )
+    data = build_request_data({
+        "label": title,
+        "description": description,
+        "parent": parent_category,
+        "parent_table": parent_table,
+    })
+    data.update({
+        "kb_knowledge_base": knowledge_base,
+        "active": str(active).lower(),
+    })
     
     # Make request
     try:
@@ -216,15 +208,17 @@ def create_category(
 
         result = response.json().get("result", {})
         
-        return format_success_response(
-            "Category created successfully",
-            category_id=result.get("sys_id"),
-            category_name=result.get("label"),
-        )
+        output = {
+            "success": True,
+            "message": "Category created successfully",
+            "category_id": result.get("sys_id"),
+            "category_name": result.get("label"),
+        }
+        return json.dumps(output, indent=2)
 
     except requests.RequestException as e:
         logger.error(f"Failed to create category: {e}")
-        return format_error_response("create category", e)
+        return f"Failed to create category: {str(e)}"
 
 
 @mcp.tool()
@@ -244,18 +238,16 @@ def create_article(
     api_url = f"{config.api_url}/table/{KB_KNOWLEDGE_TABLE}"
 
     # Build request data  
-    data = build_request_data(
-        required_fields={
-            "short_description": title,  # ServiceNow uses short_description as title
-            "text": text,
-            "kb_knowledge_base": knowledge_base,
-            "kb_category": category,
-        },
-        optional_fields={
-            "keywords": keywords,
-            "article_type": article_type,
-        }
-    )
+    data = build_request_data({
+        "short_description": title,  # ServiceNow uses short_description as title
+        "text": text,
+        "keywords": keywords,
+    })
+    data.update({
+        "kb_knowledge_base": knowledge_base,
+        "kb_category": category,
+        "article_type": article_type,
+    })
 
     # Make request
     try:
@@ -269,16 +261,18 @@ def create_article(
 
         result = response.json().get("result", {})
 
-        return format_success_response(
-            "Article created successfully",
-            article_id=result.get("sys_id"),
-            article_title=result.get("short_description"),
-            workflow_state=result.get("workflow_state"),
-        )
+        output = {
+            "success": True,
+            "message": "Article created successfully",
+            "article_id": result.get("sys_id"),
+            "article_title": result.get("short_description"),
+            "workflow_state": result.get("workflow_state"),
+        }
+        return json.dumps(output, indent=2)
 
     except requests.RequestException as e:
         logger.error(f"Failed to create article: {e}")
-        return format_error_response("create article", e)
+        return f"Failed to create article: {str(e)}"
 
 
 @mcp.tool()
@@ -297,15 +291,12 @@ def update_article(
     api_url = f"{config.api_url}/table/{KB_KNOWLEDGE_TABLE}/{article_id}"
 
     # Build request data
-    data = build_request_data(
-        required_fields={},
-        optional_fields={
-            "short_description": title or short_description,
-            "text": text,
-            "kb_category": category,
-            "keywords": keywords,
-        }
-    )
+    data = build_request_data({
+        "short_description": title or short_description,
+        "text": text,
+        "kb_category": category,
+        "keywords": keywords,
+    })
 
     # Make request
     try:
@@ -319,16 +310,18 @@ def update_article(
 
         result = response.json().get("result", {})
 
-        return format_success_response(
-            "Article updated successfully",
-            article_id=article_id,
-            article_title=result.get("short_description"),
-            workflow_state=result.get("workflow_state"),
-        )
+        output = {
+            "success": True,
+            "message": "Article updated successfully",
+            "article_id": article_id,
+            "article_title": result.get("short_description"),
+            "workflow_state": result.get("workflow_state"),
+        }
+        return json.dumps(output, indent=2)
 
     except requests.RequestException as e:
         logger.error(f"Failed to update article: {e}")
-        return format_error_response("update article", e)
+        return f"Failed to update article: {str(e)}"
 
 
 @mcp.tool()
@@ -344,10 +337,10 @@ def publish_article(
     api_url = f"{config.api_url}/table/{KB_KNOWLEDGE_TABLE}/{article_id}"
 
     # Build request data
-    data = build_request_data(
-        required_fields={"workflow_state": workflow_state},
-        optional_fields={"workflow_version": workflow_version},
-    )
+    data = build_request_data({
+        "workflow_version": workflow_version,
+    })
+    data["workflow_state"] = workflow_state
 
     # Make request
     try:
@@ -361,16 +354,18 @@ def publish_article(
 
         result = response.json().get("result", {})
 
-        return format_success_response(
-            "Article published successfully",
-            article_id=article_id,
-            article_title=result.get("short_description"),
-            workflow_state=result.get("workflow_state"),
-        )
+        output = {
+            "success": True,
+            "message": "Article published successfully",
+            "article_id": article_id,
+            "article_title": result.get("short_description"),
+            "workflow_state": result.get("workflow_state"),
+        }
+        return json.dumps(output, indent=2)
 
     except requests.RequestException as e:
         logger.error(f"Failed to publish article: {e}")
-        return format_error_response("publish article", e)
+        return f"Failed to publish article: {str(e)}"
 
 
 @mcp.tool()
@@ -469,7 +464,7 @@ def list_articles(
 
     except requests.RequestException as e:
         logger.error(f"Failed to list articles: {e}")
-        return format_error_response("list articles", e)
+        return f"Failed to list articles: {str(e)}"
 
 
 @mcp.tool()
@@ -548,7 +543,7 @@ def get_article(
 
     except requests.RequestException as e:
         logger.error(f"Failed to get article: {e}")
-        return format_error_response("get article", e)
+        return f"Failed to get article: {str(e)}"
 
 
 @mcp.tool()
@@ -649,4 +644,4 @@ def list_categories(
 
     except requests.RequestException as e:
         logger.error(f"Failed to list categories: {e}")
-        return format_error_response("list categories", e)
+        return f"Failed to list categories: {str(e)}"

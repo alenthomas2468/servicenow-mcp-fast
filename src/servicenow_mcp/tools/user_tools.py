@@ -20,8 +20,6 @@ from servicenow_mcp.utils.helpers import (
     format_error_response,
     format_list_response,
     extract_display_value,
-    is_sys_id,
-    validate_pagination,
 )
 
 logger = logging.getLogger(__name__)
@@ -196,6 +194,10 @@ def create_user(
         logger.error(f"Failed to create user: {e}")
         return format_error_response("create user", e)
 
+    except requests.RequestException as e:
+        logger.error(f"Failed to create user: {e}")
+        return f"Failed to create user: {str(e)}"
+
 
 @mcp.tool()
 def update_user(
@@ -221,24 +223,22 @@ def update_user(
     auth_manager = get_auth_manager()
     api_url = f"{config.api_url}/table/{USER_TABLE}/{user_id}"
 
-    # Build request data using helper
-    data = build_request_data(
-        required_fields={},
-        optional_fields={
-            "user_name": user_name,
-            "first_name": first_name,
-            "last_name": last_name,
-            "email": email,
-            "title": title,
-            "department": department,
-            "manager": manager,
-            "phone": phone,
-            "mobile_phone": mobile_phone,
-            "location": location,
-            "user_password": password,  # Note: password field name change
-            "active": active,
-        }
-    )
+    # Build request data
+    data = build_request_data({
+        "user_name": user_name,
+        "first_name": first_name,
+        "last_name": last_name,
+        "email": email,
+        "title": title,
+        "department": department,
+        "manager": manager,
+        "phone": phone,
+        "mobile_phone": mobile_phone,
+        "location": location,
+        "user_password": password,  # Note: password field name change
+    })
+    if active is not None:
+        data["active"] = str(active).lower()
 
     # Make request
     try:
@@ -256,15 +256,17 @@ def update_user(
         if roles:
             assign_roles_to_user_impl(user_id, roles)
 
-        return format_success_response(
-            "User updated successfully",
-            user_id=result.get("sys_id"),
-            user_name=result.get("user_name"),
-        )
+        output = {
+            "success": True,
+            "message": "User updated successfully",
+            "user_id": result.get("sys_id"),
+            "user_name": result.get("user_name"),
+        }
+        return json.dumps(output, indent=2)
 
     except requests.RequestException as e:
         logger.error(f"Failed to update user: {e}")
-        return format_error_response("update user", e)
+        return f"Failed to update user: {str(e)}"
 
 
 @mcp.tool()
@@ -282,15 +284,10 @@ def get_user(
     api_url = f"{config.api_url}/table/{USER_TABLE}"
     query_params = {}
 
-    # Resolve user ID - determine which identifier to use
-    identifier = user_id or user_name or email
-    if not identifier:
-        return format_error_response("get user", ValueError("At least one of user_id, user_name, or email is required"))
-    
-    lookup_field = "sys_id" if user_id and is_sys_id(user_id) else "user_name" if user_name else "email"
-    resolved_id = resolve_record_id(USER_TABLE, identifier, lookup_field=lookup_field)
+    # Resolve user ID
+    resolved_id = resolve_record_id(USER_TABLE, user_id, user_name, email)
     if not resolved_id:
-        return format_error_response("get user", ValueError(f"User not found: {identifier}"))
+        return "User not found"
     
     # Build query parameters
     query_params["sysparm_query"] = f"sys_id={resolved_id}"
@@ -310,16 +307,13 @@ def get_user(
 
         result = response.json().get("result", [])
         if not result:
-            return format_error_response("get user", ValueError("User not found"))
+            return "User not found"
 
-        return format_success_response(
-            "User retrieved successfully",
-            user=result[0],
-        )
+        return json.dumps(result[0], indent=2)
 
     except requests.RequestException as e:
         logger.error(f"Failed to get user: {e}")
-        return format_error_response("get user", e)
+        return f"Failed to get user: {str(e)}"
 
 
 @mcp.tool()
@@ -338,7 +332,6 @@ def list_users(
     """
     config = get_config()
     auth_manager = get_auth_manager()
-    limit, offset = validate_pagination(limit, offset)
     
     api_url = f"{config.api_url}/table/{USER_TABLE}"
     query_params = {
@@ -371,11 +364,15 @@ def list_users(
 
         result = response.json().get("result", [])
 
-        return format_list_response(result, "users", limit, offset)
+        output = {
+            "users": result,
+            "count": len(result),
+        }
+        return json.dumps(output, indent=2)
 
     except requests.RequestException as e:
         logger.error(f"Failed to list users: {e}")
-        return format_error_response("list users", e)
+        return f"Failed to list users: {str(e)}"
 
 
 @mcp.tool()
@@ -388,9 +385,9 @@ def assign_roles_to_user(
     """
     success = assign_roles_to_user_impl(user_id, roles)
     if success:
-        return format_success_response("Roles assigned successfully", user_id=user_id, roles=roles)
+        return "Roles assigned successfully"
     else:
-        return format_error_response("assign roles", ValueError("Failed to assign some or all roles"))
+        return "Failed to assign some or all roles"
 
 
 @mcp.tool()
@@ -413,18 +410,16 @@ def create_group(
     auth_manager = get_auth_manager()
     api_url = f"{config.api_url}/table/{USER_GROUP_TABLE}"
 
-    # Build request data using helper
-    data = build_request_data(
-        required_fields={"name": name},
-        optional_fields={
-            "description": description,
-            "manager": manager,
-            "parent": parent,
-            "type": type,
-            "email": email,
-            "active": active,
-        }
-    )
+    # Build request data
+    data = build_request_data({
+        "name": name,
+        "description": description,
+        "manager": manager,
+        "parent": parent,
+        "type": type,
+        "email": email,
+    })
+    data["active"] = str(active).lower()
 
     # Make request
     try:
@@ -443,15 +438,17 @@ def create_group(
         if members and group_id:
             add_group_members_impl(group_id, members)
 
-        return format_success_response(
-            "Group created successfully",
-            group_id=group_id,
-            group_name=result.get("name"),
-        )
+        output = {
+            "success": True,
+            "message": "Group created successfully",
+            "group_id": group_id,
+            "group_name": result.get("name"),
+        }
+        return json.dumps(output, indent=2)
 
     except requests.RequestException as e:
         logger.error(f"Failed to create group: {e}")
-        return format_error_response("create group", e)
+        return f"Failed to create group: {str(e)}"
 
 
 @mcp.tool()
@@ -472,19 +469,17 @@ def update_group(
     auth_manager = get_auth_manager()
     api_url = f"{config.api_url}/table/{USER_GROUP_TABLE}/{group_id}"
 
-    # Build request data using helper
-    data = build_request_data(
-        required_fields={},
-        optional_fields={
-            "name": name,
-            "description": description,
-            "manager": manager,
-            "parent": parent,
-            "type": type,
-            "email": email,
-            "active": active,
-        }
-    )
+    # Build request data
+    data = build_request_data({
+        "name": name,
+        "description": description,
+        "manager": manager,
+        "parent": parent,
+        "type": type,
+        "email": email,
+    })
+    if active is not None:
+        data["active"] = str(active).lower()
 
     # Make request
     try:
@@ -498,15 +493,17 @@ def update_group(
 
         result = response.json().get("result", {})
 
-        return format_success_response(
-            "Group updated successfully",
-            group_id=result.get("sys_id"),
-            group_name=result.get("name"),
-        )
+        output = {
+            "success": True,
+            "message": "Group updated successfully",
+            "group_id": result.get("sys_id"),
+            "group_name": result.get("name"),
+        }
+        return json.dumps(output, indent=2)
 
     except requests.RequestException as e:
         logger.error(f"Failed to update group: {e}")
-        return format_error_response("update group", e)
+        return f"Failed to update group: {str(e)}"
 
 def add_group_members_impl(
     group_id: str,
@@ -638,8 +635,12 @@ def list_groups(
 
         result = response.json().get("result", [])
         
-        return format_list_response(result, "groups", limit, offset)
+        output = {
+            "groups": result,
+            "count": len(result),
+        }
+        return json.dumps(output, indent=2)
 
     except requests.RequestException as e:
         logger.error(f"Failed to list groups: {e}")
-        return format_error_response("list groups", e)
+        return f"Failed to list groups: {str(e)}"

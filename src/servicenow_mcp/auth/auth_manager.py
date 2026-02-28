@@ -111,8 +111,8 @@ class AuthManager:
         ssl_verify: Union[bool, str] = self.ssl_cert_path if self.ssl_cert_path else True
         response = requests.post(token_url, headers=headers, data=data_client_credentials, verify=ssl_verify)
         
-        logger.debug(f"client_credentials response status: {response.status_code}")
-        logger.debug(f"client_credentials response body: {response.text}")
+        logger.info(f"client_credentials response status: {response.status_code}")
+        logger.info(f"client_credentials response body: {response.text}")
         
         if response.status_code == 200:
             token_data = response.json()
@@ -131,8 +131,8 @@ class AuthManager:
             logger.info("Attempting password grant...")
             response = requests.post(token_url, headers=headers, data=data_password, verify=ssl_verify)
             
-            logger.debug(f"password grant response status: {response.status_code}")
-            logger.debug(f"password grant response body: {response.text}")
+            logger.info(f"password grant response status: {response.status_code}")
+            logger.info(f"password grant response body: {response.text}")
             
             if response.status_code == 200:
                 token_data = response.json()

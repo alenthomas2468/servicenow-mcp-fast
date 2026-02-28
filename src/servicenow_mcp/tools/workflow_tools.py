@@ -59,7 +59,7 @@ def list_workflows(
         query_params["sysparm_query"] = "^".join(query_parts)
     
     try:
-        url = f"{config.instance_url}/api/now/table/{WORKFLOW_TABLE}"
+        url = f"{config.api_url}/table/{WORKFLOW_TABLE}"
         response = http_client.get(url, headers=auth_manager.get_headers(), params=query_params)
         response.raise_for_status()
         
@@ -90,7 +90,7 @@ def get_workflow_details(
     auth_manager = get_auth_manager()
     
     try:
-        url = f"{config.instance_url}/api/now/table/{WORKFLOW_TABLE}/{workflow_id}"
+        url = f"{config.api_url}/table/{WORKFLOW_TABLE}/{workflow_id}"
         response = http_client.get(url, headers=auth_manager.get_headers())
         response.raise_for_status()
         
@@ -121,7 +121,7 @@ def list_workflow_versions(
     }
     
     try:
-        url = f"{config.instance_url}/api/now/table/{WORKFLOW_VERSION_TABLE}"
+        url = f"{config.api_url}/table/{WORKFLOW_VERSION_TABLE}"
         response = http_client.get(url, headers=auth_manager.get_headers(), params=query_params)
         response.raise_for_status()
         
@@ -157,7 +157,7 @@ def get_workflow_activities(
     # If no version specified, get the latest published version
     if not version_id:
         try:
-            version_url = f"{config.instance_url}/api/now/table/{WORKFLOW_VERSION_TABLE}"
+            version_url = f"{config.api_url}/table/{WORKFLOW_VERSION_TABLE}"
             version_params = {
                 "sysparm_query": f"workflow={workflow_id}^published=true",
                 "sysparm_limit": 1,
@@ -179,7 +179,7 @@ def get_workflow_activities(
     
     # Get activities for the version
     try:
-        activities_url = f"{config.instance_url}/api/now/table/{WORKFLOW_ACTIVITY_TABLE}"
+        activities_url = f"{config.api_url}/table/{WORKFLOW_ACTIVITY_TABLE}"
         activities_params = {
             "sysparm_query": f"workflow_version={version_id}",
             "sysparm_orderby": "order",
@@ -226,7 +226,7 @@ def create_workflow(
     )
     
     try:
-        url = f"{config.instance_url}/api/now/table/{WORKFLOW_TABLE}"
+        url = f"{config.api_url}/table/{WORKFLOW_TABLE}"
         response = http_client.post(url, headers=auth_manager.get_headers(), json=data)
         response.raise_for_status()
         
@@ -267,7 +267,7 @@ def update_workflow(
         return "No update parameters provided"
     
     try:
-        url = f"{config.instance_url}/api/now/table/{WORKFLOW_TABLE}/{workflow_id}"
+        url = f"{config.api_url}/table/{WORKFLOW_TABLE}/{workflow_id}"
         response = http_client.patch(url, headers=auth_manager.get_headers(), json=data)
         response.raise_for_status()
         
@@ -290,7 +290,7 @@ def activate_workflow(
     auth_manager = get_auth_manager()
     
     try:
-        url = f"{config.instance_url}/api/now/table/{WORKFLOW_TABLE}/{workflow_id}"
+        url = f"{config.api_url}/table/{WORKFLOW_TABLE}/{workflow_id}"
         response = http_client.patch(url, headers=auth_manager.get_headers(), json={"active": "true"})
         response.raise_for_status()
         
@@ -313,7 +313,7 @@ def deactivate_workflow(
     auth_manager = get_auth_manager()
     
     try:
-        url = f"{config.instance_url}/api/now/table/{WORKFLOW_TABLE}/{workflow_id}"
+        url = f"{config.api_url}/table/{WORKFLOW_TABLE}/{workflow_id}"
         response = http_client.patch(url, headers=auth_manager.get_headers(), json={"active": "false"})
         response.raise_for_status()
         

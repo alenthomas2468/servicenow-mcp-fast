@@ -41,9 +41,7 @@ def list_script_includes(
     auth_manager = get_auth_manager()
 
     try:
-        url = f"{config.instance_url}/api/now/table/{SCRIPT_INCLUDE_TABLE}"
-        
-        # Build query parameters
+        url = f"{config.api_url}/table/{SCRIPT_INCLUDE_TABLE}"
         query_params = {
             "sysparm_limit": str(limit),
             "sysparm_offset": str(offset),
@@ -117,10 +115,10 @@ def get_script_include(
         # Determine if we're querying by sys_id or name
         if script_include_id.startswith("sys_id:") or is_sys_id(script_include_id):
             sys_id = script_include_id.replace("sys_id:", "")
-            url = f"{config.instance_url}/api/now/table/{SCRIPT_INCLUDE_TABLE}/{sys_id}"
+            url = f"{config.api_url}/table/{SCRIPT_INCLUDE_TABLE}/{sys_id}"
         else:
             # Query by name
-            url = f"{config.instance_url}/api/now/table/{SCRIPT_INCLUDE_TABLE}"
+            url = f"{config.api_url}/table/{SCRIPT_INCLUDE_TABLE}"
             query_params["sysparm_query"] = f"name={script_include_id}"
             query_params["sysparm_limit"] = "1"
             
@@ -186,7 +184,7 @@ def create_script_include(
     config = get_config()
     auth_manager = get_auth_manager()
 
-    url = f"{config.instance_url}/api/now/table/{SCRIPT_INCLUDE_TABLE}"
+    url = f"{config.api_url}/table/{SCRIPT_INCLUDE_TABLE}"
     
     # Build request data using helper
     body = build_request_data(
@@ -251,7 +249,7 @@ def update_script_include(
     sys_id_to_update = script_include_id
     if not (len(script_include_id) == 32 and all(c in "0123456789abcdef" for c in script_include_id)):
          # It's likely a name, need to resolve to sys_id
-         search_url = f"{config.instance_url}/api/now/table/{SCRIPT_INCLUDE_TABLE}"
+         search_url = f"{config.api_url}/table/{SCRIPT_INCLUDE_TABLE}"
          search_params = {"sysparm_query": f"name={script_include_id}", "sysparm_limit": "1", "sysparm_fields": "sys_id"}
          try:
              s_resp = http_client.get(search_url, params=search_params, headers=auth_manager.get_headers(), timeout=config.timeout)
@@ -265,32 +263,24 @@ def update_script_include(
 
 
     # Build the URL
-    url = f"{config.instance_url}/api/now/table/{SCRIPT_INCLUDE_TABLE}/{sys_id_to_update}"
+    url = f"{config.api_url}/table/{SCRIPT_INCLUDE_TABLE}/{sys_id_to_update}"
     
     # Build the request body
-    body = {}
-    
-    if script is not None:
-        body["script"] = script
-        
-    if description is not None:
-        body["description"] = description
-        
-    if api_name is not None:
-        body["api_name"] = api_name
-        
-    if client_callable is not None:
-        body["client_callable"] = str(client_callable).lower()
-        
-    if active is not None:
-        body["active"] = str(active).lower()
-        
-    if access is not None:
-        body["access"] = access
+    body = build_request_data(
+        required_fields={},
+        optional_fields={
+            "script": script,
+            "description": description,
+            "api_name": api_name,
+            "client_callable": client_callable,
+            "active": active,
+            "access": access,
+        }
+    )
         
     # If no fields to update, return success
     if not body:
-         return "No changes provided to update."
+         return format_error_response("update script include", ValueError("No changes provided to update"))
         
     # Make the request
     headers = auth_manager.get_headers()
@@ -308,21 +298,19 @@ def update_script_include(
         data = response.json()
         
         if "result" not in data:
-             return f"Failed to update script include"
+             return format_error_response("update script include", ValueError("No result in response"))
             
         result = data["result"]
         
-        output = {
-            "success": True,
-            "message": f"Updated script include: {result.get('name')}",
-            "script_include_id": result.get("sys_id"),
-            "script_include_name": result.get("name"),
-        }
-        return json.dumps(output, indent=2)
+        return format_success_response(
+            f"Updated script include: {result.get('name')}",
+            script_include_id=result.get("sys_id"),
+            script_include_name=result.get("name"),
+        )
         
     except Exception as e:
         logger.error(f"Error updating script include: {e}")
-        return f"Error updating script include: {str(e)}"
+        return format_error_response("update script include", e)
 
 
 @mcp.tool()
@@ -336,9 +324,9 @@ def delete_script_include(
     # Resolve script include ID to sys_id
     sys_id = resolve_record_id(SCRIPT_INCLUDE_TABLE, script_include_id, lookup_field="name")
     if not sys_id:
-        return f"Script include not found: {script_include_id}"
+        return format_error_response("delete script include", ValueError(f"Script include not found: {script_include_id}"))
     
-    url = f"{config.instance_url}/api/now/table/{SCRIPT_INCLUDE_TABLE}/{sys_id}"
+    url = f"{config.api_url}/table/{SCRIPT_INCLUDE_TABLE}/{sys_id}"
     
     try:
         response = http_client.delete(

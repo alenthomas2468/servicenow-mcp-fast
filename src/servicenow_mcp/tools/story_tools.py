@@ -258,24 +258,3 @@ def create_story_dependency(
         logger.error(f"Error creating story dependency: {e}")
         return format_error_response("create story dependency", e)
 
-
-@mcp.tool()
-def delete_story_dependency(
-    dependency_id: str = Field(..., description="Sys_id of the dependency is required"),
-) -> str:
-    """
-    Delete a story dependency in ServiceNow.
-    """
-    config = get_config()
-    auth_manager = get_auth_manager()
-    
-    try:
-        url = f"{config.api_url}/table/{STORY_DEPENDENCY_TABLE}/{dependency_id}"
-        response = http_client.delete(url, headers=auth_manager.get_headers())
-        response.raise_for_status()
-        
-        return format_success_response("Story dependency deleted successfully")
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error deleting story dependency: {e}")
-        return format_error_response("delete story dependency", e)

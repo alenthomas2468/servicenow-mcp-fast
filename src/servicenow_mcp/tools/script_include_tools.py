@@ -312,35 +312,3 @@ def update_script_include(
         logger.error(f"Error updating script include: {e}")
         return format_error_response("update script include", e)
 
-
-@mcp.tool()
-def delete_script_include(
-    script_include_id: str = Field(..., description="Script include ID or name"),
-) -> str:
-    """Delete a script include from ServiceNow."""
-    config = get_config()
-    auth_manager = get_auth_manager()
-
-    # Resolve script include ID to sys_id
-    sys_id = resolve_record_id(SCRIPT_INCLUDE_TABLE, script_include_id, lookup_field="name")
-    if not sys_id:
-        return format_error_response("delete script include", ValueError(f"Script include not found: {script_include_id}"))
-    
-    url = f"{config.api_url}/table/{SCRIPT_INCLUDE_TABLE}/{sys_id}"
-    
-    try:
-        response = http_client.delete(
-            url,
-            headers=auth_manager.get_headers(),
-            timeout=config.timeout,
-        )
-        response.raise_for_status()
-        
-        return format_success_response(
-            f"Deleted script include: {script_include_id}",
-            script_include_id=sys_id,
-        )
-
-    except Exception as e:
-        logger.error(f"Error deleting script include: {e}")
-        return format_error_response("delete script include", e)

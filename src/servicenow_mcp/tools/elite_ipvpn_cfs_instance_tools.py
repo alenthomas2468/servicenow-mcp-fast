@@ -669,7 +669,9 @@ def get_elite_ipvpn_cfs_instance(
             "sysparm_display_value": "true",
             "sysparm_exclude_reference_link": "true",
             "sysparm_fields": ELITE_IPVPN_CFS_INSTANCE_FIELDS,
-        }        if is_sys_id(instance_id):
+        }
+
+        if is_sys_id(instance_id):
             url = f"{config.api_url}/table/{ELITE_IPVPN_CFS_INSTANCE_TABLE}/{instance_id}"
         else:
             url = f"{config.api_url}/table/{ELITE_IPVPN_CFS_INSTANCE_TABLE}"

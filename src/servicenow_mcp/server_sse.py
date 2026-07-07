@@ -27,7 +27,15 @@ logger = logging.getLogger(__name__)
 
 
 def _configure_endpoint_auth():
-    """Protect the MCP endpoint itself with a bearer token if configured."""
+    """Protect the MCP endpoint itself with a bearer token if configured.
+
+    BLOCKER overcome: the original server had no auth on the HTTP/SSE endpoint
+    at all. Once bound to 0.0.0.0 for EC2 (see ServerConfig.host), that meant
+    anyone who found the URL could call every ServiceNow tool using this
+    server's credentials. StaticTokenVerifier is the minimal fix for the demo;
+    docs/DEPLOYMENT_EC2.md (local-only) covers upgrading to real OAuth
+    (fastmcp.server.auth.providers.*) for a production rollout.
+    """
     auth_token = os.environ.get("MCP_AUTH_TOKEN")
     if auth_token:
         from fastmcp.server.auth import StaticTokenVerifier
@@ -58,6 +66,10 @@ def main():
 
         _configure_endpoint_auth()
 
+        # BLOCKER overcome: this used to be hardcoded to transport="sse", which
+        # is the deprecated MCP transport. Streamable HTTP ("http") is the
+        # current spec and is what claude.ai / Claude Desktop remote connectors
+        # expect; SSE is kept only for backward compatibility with older clients.
         transport = os.environ.get("MCP_TRANSPORT", "http").lower()
         if transport not in ("http", "sse"):
             raise ValueError(f"Unsupported MCP_TRANSPORT: {transport} (use 'http' or 'sse')")

@@ -57,6 +57,10 @@ class ServerConfig(BaseModel):
     auth: AuthConfig
     debug: bool = False
     timeout: int = 30
+    # BLOCKER (T3 EC2 deploy): FastMCP defaults to binding 127.0.0.1, which only
+    # accepts connections from inside the container/instance itself. The first
+    # EC2 deployment attempt ran fine but was unreachable from the internet
+    # because of this default. Must stay 0.0.0.0 for Docker/EC2 to expose it.
     host: str = "0.0.0.0"
     port: int = 8080
     script_execution_api_resource_path: Optional[str] = None

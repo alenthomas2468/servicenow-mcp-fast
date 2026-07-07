@@ -1,5 +1,11 @@
 # Caddy reverse proxy: automatic HTTPS via Let's Encrypt.
 # DOMAIN comes from the environment (set in deploy/.env).
+#
+# BLOCKER overcome: the MCP server itself only speaks plain HTTP, but
+# claude.ai / Claude Desktop refuse to connect to a remote MCP server over
+# HTTP. Caddy sits in front, gets a free cert for DOMAIN automatically (needs
+# a real DNS name, e.g. via DuckDNS, and port 80 open for the ACME challenge),
+# and forwards the now-HTTPS traffic to the mcp container on 8080.
 
 {$DOMAIN} {
 	reverse_proxy mcp:8080

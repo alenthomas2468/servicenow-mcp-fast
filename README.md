@@ -152,3 +152,26 @@ For convenience, a `inspector.ps1` script is provided:
 ```powershell
 .\inspector.ps1
 ```
+
+## Remote Deployment (Streamable HTTP)
+
+The server can run as a remote MCP server over Streamable HTTP so cloud AI
+clients (Claude Desktop, claude.ai, Claude Code) can connect:
+
+```bash
+# Streamable HTTP on 0.0.0.0:8080 at /mcp, protected by a bearer token
+MCP_AUTH_TOKEN=<random-secret> servicenow-mcp-http
+```
+
+Key environment variables:
+
+| Variable         | Default | Purpose                                          |
+|------------------|---------|--------------------------------------------------|
+| `MCP_TRANSPORT`  | `http`  | `http` (Streamable HTTP) or `sse` (legacy)       |
+| `MCP_HOST`       | `0.0.0.0` | Bind interface (keep 0.0.0.0 for Docker/EC2)   |
+| `PORT`           | `8080`  | Listen port                                      |
+| `MCP_AUTH_TOKEN` | unset   | If set, clients must send `Authorization: Bearer <token>`. **Never expose the server publicly without it.** |
+
+See [docs/DEPLOYMENT_EC2.md](docs/DEPLOYMENT_EC2.md) for a complete AWS EC2
+free-tier deployment guide (Docker + Caddy with automatic HTTPS), client
+setup, OAuth upgrade path, and the scaling story.

@@ -58,6 +58,11 @@ def parse_args():
         default=int(os.environ.get("PORT", "8080")),
     )
     parser.add_argument(
+        "--host",
+        help="Host interface to bind for HTTP/SSE transport (0.0.0.0 required for Docker/EC2)",
+        default=os.environ.get("MCP_HOST", "0.0.0.0"),
+    )
+    parser.add_argument(
         "--ssl-cert-path",
         help="Path to SSL certificate file (.crt) for private network instances",
         default=os.environ.get("SERVICENOW_SSL_CERT_PATH"),
@@ -242,6 +247,7 @@ def create_config_and_auth() -> Tuple[ServerConfig, AuthManager]:
         auth=final_auth_config,
         debug=args.debug,
         timeout=args.timeout,
+        host=args.host,
         port=args.port,
         script_execution_api_resource_path=script_execution_api_resource_path,
         ssl_cert_path=args.ssl_cert_path,

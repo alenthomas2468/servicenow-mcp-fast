@@ -5,8 +5,9 @@ description = "ServiceNow MCP Server using FastMCP"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "fastmcp>=0.1.0",
+    "fastmcp>=2.11.0",
     "mcp[cli]>=1.0.0",
+    "requests>=2.31.0",
     "annotated-types>=0.7.0",
     "anyio>=4.8.0",
     "httpx>=0.28.1",
@@ -27,4 +28,5 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project.scripts]
-servicenow-mcp = "servicenow_mcp.application:main"
+servicenow-mcp = "servicenow_mcp.server:main"
+servicenow-mcp-http = "servicenow_mcp.server_sse:main"

@@ -9,12 +9,17 @@ COPY src/ /app/src/
 # Install the package (source is now available)
 RUN pip install --no-cache-dir .
 
-# Set environment variables
-ENV PYTHONPATH=/app/src
-ENV PYTHONUNBUFFERED=1
+# Run as a non-root user
+RUN useradd --create-home mcp
+USER mcp
 
-# Expose port for SSE
+ENV PYTHONUNBUFFERED=1
+ENV MCP_TRANSPORT=http
+ENV MCP_HOST=0.0.0.0
+ENV PORT=8080
+
+# Expose port for Streamable HTTP / SSE
 EXPOSE 8080
 
-# Default command (can be overridden)
-CMD ["python", "src/servicenow_mcp/server_sse.py"]
+# Remote entry point (Streamable HTTP at /mcp by default)
+CMD ["servicenow-mcp-http"]

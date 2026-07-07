@@ -143,7 +143,11 @@ def resolve_record_id(
         if result:
             return result[0].get("sys_id")
         return None
-        
+
+    except http_client.InstanceHibernatingError:
+        # Not a lookup miss - let the clear hibernation message reach the client
+        # instead of reporting the record as "not found"
+        raise
     except requests.RequestException as e:
         logger.error(f"Failed to resolve {table} ID '{identifier}': {e}")
         return None
@@ -177,16 +181,36 @@ def format_success_response(
 
 def format_error_response(operation: str, error: Exception) -> str:
     """
-    Format an error response consistently.
-    
+    Format an error response as structured JSON, mirroring success responses.
+
+    When the error carries an HTTP response, the status code and ServiceNow's
+    own error body (which names the failing field, ACL, etc.) are included so
+    the calling LLM can act on the failure instead of just seeing it.
+
     Args:
         operation: Description of the operation that failed.
         error: The exception that occurred.
-        
+
     Returns:
-        Formatted error message string.
+        JSON-formatted error response.
     """
-    return f"Failed to {operation}: {str(error)}"
+    output: Dict[str, Any] = {
+        "success": False,
+        "message": f"Failed to {operation}",
+        "error": str(error),
+    }
+
+    response = getattr(error, "response", None)
+    if response is not None:
+        output["status_code"] = response.status_code
+        try:
+            body = response.json()
+            if isinstance(body, dict) and body.get("error"):
+                output["servicenow_error"] = body["error"]
+        except ValueError:
+            pass
+
+    return json.dumps(output, indent=2)
 
 
 def format_list_response(

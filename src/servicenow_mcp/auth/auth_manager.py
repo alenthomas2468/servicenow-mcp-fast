@@ -4,15 +4,17 @@ Authentication manager for the ServiceNow MCP server.
 
 import base64
 import logging
-import os
-from typing import Dict, Optional, Union
+import time
+from typing import Any, Dict, Optional, Union
 
-import requests
-
+from servicenow_mcp.utils import http_client
 from servicenow_mcp.utils.config import AuthConfig, AuthType
 
 
 logger = logging.getLogger(__name__)
+
+# Timeout for OAuth token requests (seconds)
+TOKEN_REQUEST_TIMEOUT = 30
 
 
 class AuthManager:
@@ -37,6 +39,7 @@ class AuthManager:
         self.ssl_cert_path = ssl_cert_path
         self.token: Optional[str] = None
         self.token_type: Optional[str] = None
+        self.token_expires_at: Optional[float] = None
     
     def get_headers(self) -> Dict[str, str]:
         """
@@ -59,9 +62,9 @@ class AuthManager:
             headers["Authorization"] = f"Basic {encoded}"
         
         elif self.config.type == AuthType.OAUTH:
-            if not self.token:
+            if not self.token or self._token_is_expired():
                 self._get_oauth_token()
-            
+
             headers["Authorization"] = f"{self.token_type} {self.token}"
         
         elif self.config.type == AuthType.API_KEY:
@@ -102,22 +105,31 @@ class AuthManager:
             "Content-Type": "application/x-www-form-urlencoded"
         }
 
+        # Explicit cert override for private instances (e.g. corporate CA for TINA);
+        # None falls back to the server config (custom cert / disabled / default).
+        ssl_verify: Union[str, None] = self.ssl_cert_path if self.ssl_cert_path else None
+
         # Try client_credentials grant first
         data_client_credentials = {
             "grant_type": "client_credentials"
         }
-        
+
         logger.info("Attempting client_credentials grant...")
-        ssl_verify: Union[bool, str] = self.ssl_cert_path if self.ssl_cert_path else True
-        response = requests.post(token_url, headers=headers, data=data_client_credentials, verify=ssl_verify)
-        
+        response = http_client.request(
+            "POST",
+            token_url,
+            headers=headers,
+            data=data_client_credentials,
+            timeout=TOKEN_REQUEST_TIMEOUT,
+            verify=ssl_verify,
+            retry_auth=False,
+        )
+
         logger.debug(f"client_credentials response status: {response.status_code}")
         logger.debug(f"client_credentials response body: {response.text}")
-        
+
         if response.status_code == 200:
-            token_data = response.json()
-            self.token = token_data.get("access_token")
-            self.token_type = token_data.get("token_type", "Bearer")
+            self._store_token(response.json())
             return
 
         # Try password grant if client_credentials failed
@@ -127,21 +139,44 @@ class AuthManager:
                 "username": oauth_config.username,
                 "password": oauth_config.password
             }
-            
+
             logger.info("Attempting password grant...")
-            response = requests.post(token_url, headers=headers, data=data_password, verify=ssl_verify)
-            
+            response = http_client.request(
+                "POST",
+                token_url,
+                headers=headers,
+                data=data_password,
+                timeout=TOKEN_REQUEST_TIMEOUT,
+                verify=ssl_verify,
+                retry_auth=False,
+            )
+
             logger.debug(f"password grant response status: {response.status_code}")
             logger.debug(f"password grant response body: {response.text}")
-            
+
             if response.status_code == 200:
-                token_data = response.json()
-                self.token = token_data.get("access_token")
-                self.token_type = token_data.get("token_type", "Bearer")
+                self._store_token(response.json())
                 return
 
         raise ValueError("Failed to get OAuth token using both client_credentials and password grants.")
-    
+
+    def _store_token(self, token_data: Dict[str, Any]):
+        """Store the access token and compute its expiry time."""
+        self.token = token_data.get("access_token")
+        self.token_type = token_data.get("token_type", "Bearer")
+
+        expires_in = token_data.get("expires_in")
+        try:
+            # Refresh 60s before actual expiry to avoid using a token that
+            # dies mid-request
+            self.token_expires_at = time.time() + int(expires_in) - 60 if expires_in else None
+        except (TypeError, ValueError):
+            self.token_expires_at = None
+
+    def _token_is_expired(self) -> bool:
+        """Check whether the stored OAuth token has passed its expiry time."""
+        return self.token_expires_at is not None and time.time() >= self.token_expires_at
+
     def refresh_token(self):
         """Refresh the OAuth token if using OAuth authentication."""
         if self.config.type == AuthType.OAUTH:

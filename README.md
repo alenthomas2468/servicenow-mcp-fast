@@ -172,6 +172,6 @@ Key environment variables:
 | `PORT`           | `8080`  | Listen port                                      |
 | `MCP_AUTH_TOKEN` | unset   | If set, clients must send `Authorization: Bearer <token>`. **Never expose the server publicly without it.** |
 
-See [docs/DEPLOYMENT_EC2.md](docs/DEPLOYMENT_EC2.md) for a complete AWS EC2
-free-tier deployment guide (Docker + Caddy with automatic HTTPS), client
-setup, OAuth upgrade path, and the scaling story.
+See `docs/DEPLOYMENT_EC2.md` (local-only, not tracked in this repo) for a
+complete AWS EC2 free-tier deployment guide (Docker + Caddy with automatic
+HTTPS), client setup, OAuth upgrade path, and the scaling story.

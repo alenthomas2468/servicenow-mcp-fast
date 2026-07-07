@@ -8,14 +8,8 @@ import sys
 from servicenow_mcp.config_loader import create_config_and_auth
 from servicenow_mcp.application import initialize, mcp
 
-# Import tools so they register with the MCP instance
-import servicenow_mcp.tools.incident_tools
-import servicenow_mcp.tools.workflow_tools
-import servicenow_mcp.tools.user_tools
-import servicenow_mcp.tools.story_tools
-import servicenow_mcp.tools.script_include_tools
-import servicenow_mcp.tools.knowledge_base
-import servicenow_mcp.tools.network_element_tools
+# Import the tools package so every tool module registers with the MCP instance
+import servicenow_mcp.tools  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

@@ -1,0 +1,6 @@
+# Caddy reverse proxy: automatic HTTPS via Let's Encrypt.
+# DOMAIN comes from the environment (set in deploy/.env).
+
+{$DOMAIN} {
+	reverse_proxy mcp:8080
+}

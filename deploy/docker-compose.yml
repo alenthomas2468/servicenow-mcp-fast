@@ -1,0 +1,47 @@
+# Deployment stack for a single EC2 instance (free tier friendly).
+#
+# Services:
+#   mcp   - the ServiceNow MCP server (Streamable HTTP on port 8080, internal only)
+#   caddy - reverse proxy that terminates HTTPS with an automatic free
+#           Let's Encrypt certificate and forwards to the MCP server
+#
+# Usage on the EC2 instance:
+#   1. Put your ServiceNow credentials in .env next to this file (see ../.env.example)
+#   2. Set DOMAIN in .env to your DNS name (e.g. mymcp.duckdns.org)
+#   3. docker compose up -d
+
+services:
+  mcp:
+    build: ..
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MCP_TRANSPORT: http
+      MCP_HOST: 0.0.0.0
+      PORT: 8080
+    expose:
+      - "8080"
+    # ~1 GB RAM on t2.micro/t3.micro; keep the container bounded
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - mcp
+
+volumes:
+  caddy_data:
+  caddy_config:

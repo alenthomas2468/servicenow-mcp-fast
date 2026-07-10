@@ -3,7 +3,9 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Copy source code and project config
-COPY pyproject.toml .
+# README.md is required at build time: pyproject.toml declares it as the
+# package's `readme`, and hatchling refuses to build metadata without it.
+COPY pyproject.toml README.md .
 COPY src/ /app/src/
 
 # Install the package (source is now available)

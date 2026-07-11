@@ -101,13 +101,72 @@ identity required **zero changes to tool code**.
 
 ## Connecting to a different ServiceNow instance
 
-The design binds **one deployment to one instance**: `SERVICENOW_INSTANCE_URL`
-is global, the OAuth endpoints are derived from it, and every tool call
-targets it. You cannot point a single deployment at two instances — but you
-don't need to. The server is stateless and cheap; the pattern is **one MCP
-server (container) per instance**, and one EC2 box can host several.
+The design binds **one running deployment to one instance at a time**:
+`SERVICENOW_INSTANCE_URL` is global, the OAuth endpoints are derived from it,
+and every tool call targets it. A single container can't talk to two
+instances *simultaneously* — but which one instance it targets is just
+config, changeable any time (below). If you need two instances live at the
+same time, the server is stateless and cheap enough that the pattern is
+**one MCP server (container) per instance**, and one EC2 box can host
+several.
 
-### Adding a second instance with basic auth (simplest)
+### Repointing this deployment at a different instance
+
+This is the common case: same single container, just change what it talks
+to — no code changes, no new deployment. Any reason applies: switching PDIs
+because the current one is hibernating/unreachable, moving to a fresh demo
+instance, a permanent migration.
+
+```bash
+ssh -i servicenowMCP.pem ubuntu@<elastic-ip>
+cd servicenow-mcp-fast/deploy
+nano .env
+```
+
+Update:
+
+- `SERVICENOW_INSTANCE_URL` and its credentials (`SERVICENOW_USERNAME`/
+  `SERVICENOW_PASSWORD`, or whatever `SERVICENOW_AUTH_TYPE` needs) for the
+  new instance
+- If per-user OAuth is enabled: `SERVICENOW_OAUTH_CLIENT_ID`/`SECRET` from a
+  **new** Application Registry record created on the new instance (redirect
+  URL `<MCP_PUBLIC_URL>/auth/callback` — this URL itself never changes, since
+  it's a property of the deployment's domain, not the instance; but
+  ServiceNow only accepts logins for a client_id it has registered with that
+  redirect, so each instance still needs its own record)
+
+Then recreate the container — `restart` does not re-read `.env`:
+
+```bash
+docker compose up -d mcp
+```
+
+If per-user OAuth was in use, also clear stored sessions so no stale tokens
+for the old instance linger:
+
+```bash
+docker compose down mcp
+docker volume rm deploy_mcp_oauth_state
+docker compose up -d mcp
+```
+
+If the new instance is a PDI, wake it and confirm it's up before relying on
+it (PDIs hibernate when idle):
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" https://<new-instance>.service-now.com
+```
+
+Nothing changes on the client side — the domain, the Caddy certificate, and
+every existing `claude mcp add` / connector registration stay exactly as
+they are, since they only point at `https://tina-mcp.duckdns.org/mcp`.
+
+### Running two instances at once (a second deployment)
+
+Different from repointing above: this keeps the current instance live and
+adds a second, independent one alongside it.
+
+#### Basic auth (simplest)
 
 Add a second service to `deploy/docker-compose.yml` with its own env file and
 route a second domain to it in the Caddyfile:
@@ -139,7 +198,7 @@ claude mcp add other-instance --scope user --transport http \
   https://<other-domain>/mcp --header "Authorization: Bearer <its-token>"
 ```
 
-### Adding a second instance with per-user OAuth
+#### Per-user OAuth
 
 Same second service, plus that instance's own Application Registry record
 (redirect URL `https://<other-domain>/auth/callback`) and its own

@@ -13,7 +13,12 @@ RUN pip install --no-cache-dir .
 
 # Run as a non-root user (defense in depth: this container holds live
 # ServiceNow credentials, so a container-escape bug shouldn't also hand out root)
-RUN useradd --create-home mcp
+# The fastmcp data dir must exist and be owned by mcp BEFORE the named volume
+# in docker-compose.yml mounts over it, or Docker creates it root-owned and
+# the OAuth proxy can't write its state.
+RUN useradd --create-home mcp \
+    && mkdir -p /home/mcp/.local/share/fastmcp \
+    && chown -R mcp:mcp /home/mcp/.local
 USER mcp
 
 ENV PYTHONUNBUFFERED=1

@@ -21,6 +21,11 @@ services:
       PORT: 8080
     expose:
       - "8080"
+    # OAuth state (dynamic client registrations, encrypted upstream tokens)
+    # lives in fastmcp's data dir; persist it so users don't have to sign in
+    # to ServiceNow again after every rebuild/recreate.
+    volumes:
+      - mcp_oauth_state:/home/mcp/.local/share/fastmcp
     # BLOCKER overcome: t2.micro/t3.micro free-tier instances have only 1 GB
     # RAM, and `docker compose up --build` OOM-killed mid-build the first time
     # this was tried on a fresh instance with no swap. Fixed by adding 2 GB of
@@ -49,3 +54,4 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  mcp_oauth_state:

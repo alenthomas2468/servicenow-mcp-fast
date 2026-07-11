@@ -181,3 +181,44 @@ class AuthManager:
         """Refresh the OAuth token if using OAuth authentication."""
         if self.config.type == AuthType.OAUTH:
             self._get_oauth_token()
+
+
+class DelegatedAuthManager(AuthManager):
+    """AuthManager carrying a per-user ServiceNow token from the MCP OAuth flow.
+
+    When a client connects through the endpoint's ServiceNow OAuth
+    (see auth/endpoint_auth.py), each request arrives with that user's own
+    ServiceNow access token. This manager wraps it so every tool call runs
+    with the user's identity and ACLs instead of the shared service account.
+
+    The token's lifecycle is owned by the endpoint's OAuthProxy (which holds
+    the refresh token), so this manager must never try to refresh it.
+    """
+
+    def __init__(
+        self,
+        access_token: str,
+        instance_url: str,
+        ssl_cert_path: Optional[str] = None,
+    ):
+        from servicenow_mcp.utils.config import AuthConfig, OAuthConfig
+
+        config = AuthConfig(
+            type=AuthType.OAUTH,
+            oauth=OAuthConfig(
+                client_id="mcp-delegated",
+                client_secret="",
+                username="",
+                password="",
+            ),
+        )
+        super().__init__(config, instance_url, ssl_cert_path)
+        self.token = access_token
+        self.token_type = "Bearer"
+        self.token_expires_at = None
+
+    def _get_oauth_token(self):
+        raise ValueError(
+            "Delegated ServiceNow token was rejected - the MCP client must "
+            "re-authenticate through the OAuth flow."
+        )

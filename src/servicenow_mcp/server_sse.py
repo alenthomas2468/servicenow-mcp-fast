@@ -26,33 +26,28 @@ import servicenow_mcp.tools  # noqa: F401
 logger = logging.getLogger(__name__)
 
 
-def _configure_endpoint_auth():
-    """Protect the MCP endpoint itself with a bearer token if configured.
+def _configure_endpoint_auth(config):
+    """Protect the MCP endpoint itself, if configured.
 
     BLOCKER overcome: the original server had no auth on the HTTP/SSE endpoint
     at all. Once bound to 0.0.0.0 for EC2 (see ServerConfig.host), that meant
     anyone who found the URL could call every ServiceNow tool using this
-    server's credentials. StaticTokenVerifier is the minimal fix for the demo;
-    docs/DEPLOYMENT_EC2.md (local-only) covers upgrading to real OAuth
-    (fastmcp.server.auth.providers.*) for a production rollout.
-    """
-    auth_token = os.environ.get("MCP_AUTH_TOKEN")
-    if auth_token:
-        from fastmcp.server.auth import StaticTokenVerifier
+    server's credentials.
 
-        mcp.auth = StaticTokenVerifier(
-            tokens={
-                auth_token: {
-                    "client_id": "servicenow-mcp-client",
-                    "scopes": ["servicenow:full"],
-                }
-            }
-        )
-        logger.info("Bearer token authentication ENABLED for the MCP endpoint")
+    auth/endpoint_auth.py builds the provider: ServiceNow OAuth (per-user
+    sign-in for claude.ai / Claude Desktop connectors), a static bearer token
+    (Claude Code and other header-capable clients), or both at once.
+    """
+    from servicenow_mcp.auth.endpoint_auth import build_endpoint_auth
+
+    auth = build_endpoint_auth(config)
+    if auth is not None:
+        mcp.auth = auth
     else:
         logger.warning(
-            "MCP_AUTH_TOKEN not set - the MCP endpoint is UNAUTHENTICATED. "
-            "Anyone who can reach this port can operate on your ServiceNow instance."
+            "Neither MCP_AUTH_TOKEN nor SERVICENOW_OAUTH_CLIENT_ID is set - the "
+            "MCP endpoint is UNAUTHENTICATED. Anyone who can reach this port "
+            "can operate on your ServiceNow instance."
         )
 
 
@@ -64,7 +59,7 @@ def main():
         # Initialize global state
         initialize(auth_manager, config)
 
-        _configure_endpoint_auth()
+        _configure_endpoint_auth(config)
 
         # BLOCKER overcome: this used to be hardcoded to transport="sse", which
         # is the deprecated MCP transport. Streamable HTTP ("http") is the

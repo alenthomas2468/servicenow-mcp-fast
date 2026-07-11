@@ -5,7 +5,7 @@ description = "ServiceNow MCP Server using FastMCP"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "fastmcp>=2.11.0",
+    "fastmcp>=3.4,<4",
     "mcp[cli]>=1.0.0",
     "requests>=2.31.0",
     "annotated-types>=0.7.0",

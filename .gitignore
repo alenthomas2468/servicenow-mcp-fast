@@ -42,5 +42,5 @@ singtel-chain.crt
 # local test scripts
 test_incidents_api.py
 
-# local-only docs (not published to GitHub)
-docs/
+# local-only working notes (not published to GitHub)
+docs/FINAL_REPORT_OUTLINE.md

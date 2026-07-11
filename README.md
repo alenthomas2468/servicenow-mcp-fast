@@ -18,22 +18,31 @@ The project follows a clean, modular architecture:
 
 ```
 src/servicenow_mcp/
-├── auth/               # Authentication handling (Basic, OAuth, API Key)
+├── auth/
+│   ├── auth_manager.py     # How the server talks to ServiceNow (basic/OAuth/API key,
+│   │                       # plus per-user delegated tokens)
+│   └── endpoint_auth.py    # How clients talk to THIS server (static bearer token
+│                           # and/or ServiceNow OAuth per-user sign-in)
 ├── tools/              # MCP tool implementations
 │   ├── incident_tools.py
 │   ├── user_tools.py
 │   ├── story_tools.py
 │   ├── workflow_tools.py
 │   ├── knowledge_base.py
-│   └── script_include_tools.py
+│   ├── script_include_tools.py
+│   ├── generic_table_tools.py
+│   ├── network_element_tools.py
+│   ├── vrf_tools.py
+│   ├── pe_router_rfs_instance_tools.py / pe_router_rfs_order_tools.py
+│   └── elite_ipvpn_cfs_instance_tools.py / elite_ipvpn_cfs_order_tools.py
 ├── utils/              # Shared utilities
-│   ├── http_client.py  # Centralized HTTP client with SSL support
+│   ├── http_client.py  # Pooled HTTP client: retries, SSL config, hibernation detection
 │   ├── helpers.py      # Common helper functions
 │   ├── config.py       # Configuration models
 │   └── logging_utils.py
-├── application.py      # FastMCP application setup
-├── server.py           # Main server entry point
-└── server_sse.py       # SSE server variant
+├── application.py      # FastMCP application setup + per-request auth routing
+├── server.py           # Local entry point (stdio)
+└── server_sse.py       # Remote entry point (Streamable HTTP / SSE)
 ```
 
 ### Utility Modules
@@ -170,8 +179,18 @@ Key environment variables:
 | `MCP_TRANSPORT`  | `http`  | `http` (Streamable HTTP) or `sse` (legacy)       |
 | `MCP_HOST`       | `0.0.0.0` | Bind interface (keep 0.0.0.0 for Docker/EC2)   |
 | `PORT`           | `8080`  | Listen port                                      |
-| `MCP_AUTH_TOKEN` | unset   | If set, clients must send `Authorization: Bearer <token>`. **Never expose the server publicly without it.** |
+| `MCP_AUTH_TOKEN` | unset   | Static bearer token for header-capable clients (Claude Code, IDEs, scripts). **Never expose the server publicly without endpoint auth.** |
+| `SERVICENOW_OAUTH_CLIENT_ID` / `SERVICENOW_OAUTH_CLIENT_SECRET` | unset | Enable per-user ServiceNow OAuth sign-in for claude.ai / Claude Desktop custom connectors. Tool calls then run as the signed-in user. |
+| `MCP_PUBLIC_URL` | unset   | Public HTTPS base URL of this server (required for OAuth) |
 
-See `docs/DEPLOYMENT_EC2.md` (local-only, not tracked in this repo) for a
-complete AWS EC2 free-tier deployment guide (Docker + Caddy with automatic
-HTTPS), client setup, OAuth upgrade path, and the scaling story.
+Both auth modes can be enabled at once — header clients use the token and act
+as the service account; OAuth clients sign in and act as themselves.
+
+Documentation:
+
+- `docs/AUTHENTICATION.md` — the two auth layers, per-user OAuth flow,
+  and how to serve additional ServiceNow instances
+- `docs/DEPLOYMENT_EC2.md` — complete AWS EC2 free-tier deployment guide
+  (Docker + Caddy with automatic HTTPS), client setup, and the scaling story
+- `docs/HTTP_HARDENING_CHANGES.md` — connection pooling, retries, structured
+  errors, hibernation detection

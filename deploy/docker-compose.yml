@@ -29,7 +29,7 @@ services:
     # BLOCKER overcome: t2.micro/t3.micro free-tier instances have only 1 GB
     # RAM, and `docker compose up --build` OOM-killed mid-build the first time
     # this was tried on a fresh instance with no swap. Fixed by adding 2 GB of
-    # swap on the host (see docs/DEPLOYMENT_EC2.md, local-only) and bounding
+    # swap on the host (see docs/DEPLOYMENT_EC2.md) and bounding
     # the running container so it can't eat the whole box afterward.
     deploy:
       resources:

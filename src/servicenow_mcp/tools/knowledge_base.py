@@ -360,12 +360,28 @@ def publish_article(
         response.raise_for_status()
 
         result = response.json().get("result", {})
+        actual_state = result.get("workflow_state")
+
+        # A knowledge workflow / business rule can veto the transition: ServiceNow
+        # answers 200 but hands back the unchanged state. Without this check the
+        # tool would report a publish that never happened.
+        if actual_state and actual_state.lower() != workflow_state.lower():
+            return format_error_response(
+                "publish article",
+                RuntimeError(
+                    f"ServiceNow accepted the request but left the article in "
+                    f"'{actual_state}' instead of '{workflow_state}'. Publication on this "
+                    f"knowledge base is governed by a knowledge workflow/approval, so the "
+                    f"state cannot be set directly through the Table API - publish it from "
+                    f"the ServiceNow UI or drive the approval flow."
+                ),
+            )
 
         return format_success_response(
             "Article published successfully",
             article_id=article_id,
             article_title=result.get("short_description"),
-            workflow_state=result.get("workflow_state"),
+            workflow_state=actual_state,
         )
 
     except requests.RequestException as e:

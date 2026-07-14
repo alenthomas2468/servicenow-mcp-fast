@@ -44,3 +44,4 @@ test_incidents_api.py
 
 # local-only working notes (not published to GitHub)
 docs/FINAL_REPORT_OUTLINE.md
+docs/DEMO_USE_CASES.md

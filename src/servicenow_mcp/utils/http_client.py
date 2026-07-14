@@ -178,6 +178,16 @@ def request(
     if verify is None:
         verify = _get_ssl_verify(url)
 
+    # ServiceNow builds absolute "first/prev/next/last" URLs for the Link header by
+    # echoing the whole query back. Tables with many fields (the CI/RFS/CFS tools ask
+    # for ~150) push that past its internal cap and the API rejects the request
+    # outright with 400 "Pagination not supported" - the failure depends on query
+    # length, not on the data, so it is permanent for the affected tools. Suppressing
+    # the Link header removes the limit; X-Total-Count is a separate header and still
+    # arrives, so callers that report totals keep working. Caller-supplied values win.
+    if method == "GET" and params:
+        params = {"sysparm_suppress_pagination_header": "true", **params}
+
     # Build request kwargs
     kwargs = {
         "method": method,

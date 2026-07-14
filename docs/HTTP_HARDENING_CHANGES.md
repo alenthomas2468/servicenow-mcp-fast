@@ -1,11 +1,11 @@
 # ServiceNow MCP Server — HTTP Layer Hardening
 
 **Commit:** `a5cc4a1` — *feat: harden HTTP layer with pooling, retries, and structured errors*
-**Date:** 8 July 2026
-**Files changed:** 3 files, +209 / −50 lines
-- `src/servicenow_mcp/utils/http_client.py` (+144)
-- `src/servicenow_mcp/auth/auth_manager.py` (+79)
-- `src/servicenow_mcp/utils/helpers.py` (+36)
+
+**Files changed:**
+- `src/servicenow_mcp/utils/http_client.py`
+- `src/servicenow_mcp/auth/auth_manager.py`
+- `src/servicenow_mcp/utils/helpers.py`
 
 **Scope guarantee:** internal changes only. All ~60 MCP tool signatures and their success JSON responses are unchanged, so nothing changes for any connected MCP client (Claude Desktop, claude.ai, Cursor, MCP Inspector, etc.). The SSL behavior for private instances — `SERVICENOW_SSL_CERT_PATH` (TINA's corporate CA certificate) and `SERVICENOW_DISABLE_SSL_VERIFY` — is preserved exactly.
 
